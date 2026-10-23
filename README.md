@@ -1,10 +1,10 @@
-# coursePulse · Build 2
+# coursePulse · Build 3
 
-🚀 **Feature Build #2**
-> **Commit Message:** `feat: sqlite database initialization and users schema`
+🚀 **Feature Build #3**
+> **Commit Message:** `feat: authentication backend with jwt session cookies`
 
 ## Summary
-Initialize SQLite with WAL mode, foreign keys, and users table with bcrypt password hashing.
+Add /api/auth/register, /api/auth/login, /api/auth/logout, and /api/auth/me endpoints using HTTP-only cookies.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.
