@@ -48,7 +48,9 @@ function requireAuth(req, res, next) {
     req.user = user;
     next();
   } catch (error) {
-    next(error);
+    if (error.name !== "JsonWebTokenError" && error.name !== "TokenExpiredError") return next(error);
+    res.clearCookie("courseflow_session");
+    return res.status(401).json({ error: "Your session has expired. Please sign in again." });
   }
 }
 

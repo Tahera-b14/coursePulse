@@ -44,7 +44,12 @@ async function api(url, options = {}) {
   });
   if (response.status === 204) return null;
   const payload = await response.json();
-  if (!response.ok) throw new Error(payload.error || "Something went wrong.");
+  if (!response.ok) {
+    if (response.status === 401 && url !== "/auth/me") {
+      window.dispatchEvent(new CustomEvent("courseflow:unauthorized"));
+    }
+    throw new Error(payload.error || "Something went wrong.");
+  }
   return payload;
 }
 

@@ -1,10 +1,10 @@
-# coursePulse · Build 4
+# coursePulse · Build 4-fix
 
-🚀 **Feature Build #4**
-> **Commit Message:** `feat: frontend authentication system and login/register ui`
+🐛 **Bug Fix Build**
+> **Commit Message:** `fix: handle expired jwt session cookies gracefully on client and server`
 
 ## Summary
-Add AuthPage with Sign In and Register forms, navbar auth state, and session restoration.
+Clear invalid or expired session cookies on 401 and prevent infinite re-authentication loops.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.
