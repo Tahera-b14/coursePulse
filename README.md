@@ -1,10 +1,10 @@
-# coursePulse · Build 3
+# coursePulse · Build 4
 
-🚀 **Feature Build #3**
-> **Commit Message:** `feat: authentication backend with jwt session cookies`
+🚀 **Feature Build #4**
+> **Commit Message:** `feat: frontend authentication system and login/register ui`
 
 ## Summary
-Add /api/auth/register, /api/auth/login, /api/auth/logout, and /api/auth/me endpoints using HTTP-only cookies.
+Add AuthPage with Sign In and Register forms, navbar auth state, and session restoration.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.
