@@ -1,10 +1,10 @@
-# coursePulse · Build 4-fix
+# coursePulse · Build 5
 
-🐛 **Bug Fix Build**
-> **Commit Message:** `fix: handle expired jwt session cookies gracefully on client and server`
+🚀 **Feature Build #5**
+> **Commit Message:** `feat: courses schema in sqlite database`
 
 ## Summary
-Clear invalid or expired session cookies on 401 and prevent infinite re-authentication loops.
+Add courses table in SQLite with title, code, credits, capacity, and instructor reference.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.

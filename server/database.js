@@ -23,4 +23,17 @@ db.exec(`
     role TEXT NOT NULL CHECK (role IN ('student', 'instructor', 'admin')),
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS courses (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    code TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    category TEXT NOT NULL,
+    level TEXT NOT NULL DEFAULT 'Beginner',
+    credits INTEGER NOT NULL DEFAULT 3 CHECK (credits BETWEEN 1 AND 12),
+    capacity INTEGER NOT NULL DEFAULT 40 CHECK (capacity BETWEEN 1 AND 500),
+    instructor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
 `);

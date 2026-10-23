@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import "./styles.css";
 
 const categories = ["All", "Development", "Data & AI", "Design", "Business"];
-const pages = ["home", "login", "register"];
+const pages = ["home", "courses", "login", "register"];
 
 const ConfirmContext = createContext(null);
 function useConfirm() {
