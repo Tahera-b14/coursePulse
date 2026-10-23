@@ -1,10 +1,10 @@
-# coursePulse · Build 1
+# coursePulse · Build 2
 
-🚀 **Feature Build #1**
-> **Commit Message:** `feat: initial project scaffold and dev server setup`
+🚀 **Feature Build #2**
+> **Commit Message:** `feat: sqlite database initialization and users schema`
 
 ## Summary
-Setup Vite + React frontend, Express API skeleton with /api/health, package.json, and styles reset.
+Initialize SQLite with WAL mode, foreign keys, and users table with bcrypt password hashing.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.

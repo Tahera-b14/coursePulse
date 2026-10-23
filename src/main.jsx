@@ -24,14 +24,14 @@ function App() {
       <main className="page-width">
         <section className="hero">
           <div className="hero-copy">
-            <div className="eyebrow"><span className="eyebrow-dot" /> BUILD 1 · SCAFFOLD</div>
-            <h1>Course management,<br /><span>made simple.</span></h1>
+            <div className="eyebrow"><span className="eyebrow-dot" /> BUILD 2 · DATABASE</div>
+            <h1>SQLite Database<br /><span>Connected.</span></h1>
             <p className="hero-description">
-              Welcome to coursePulse. The application skeleton is running with React + Vite on the frontend and Express on the backend.
+              Database initialized using better-sqlite3 in WAL mode. The users table is created with unique email constraints and role checks.
             </p>
             <div style={{ marginTop: "24px", padding: "16px", background: "#fff", borderRadius: "12px", border: "1px solid #e2e8e3" }}>
-              <strong>API Health Status:</strong> <span style={{ color: health.status === "ok" ? "#2e7d32" : "#c62828" }}>{health.status}</span>
-              {health.timestamp && <div style={{ fontSize: "12px", color: "#666", marginTop: "4px" }}>Checked at: {health.timestamp}</div>}
+              <strong>Database Status:</strong> <span style={{ color: health.database === "connected" ? "#2e7d32" : "#c62828" }}>{health.database || health.status}</span>
+              <div style={{ fontSize: "13px", color: "#555", marginTop: "6px" }}>Total Users Registered: <strong>{health.users ?? 0}</strong></div>
             </div>
           </div>
         </section>
@@ -42,7 +42,7 @@ function App() {
           <span className="brand-mark"><img src="/coursepulse-logo.png" alt="" /></span>
           <strong>course<span>Pulse</span></strong>
         </div>
-        <span>Initial Scaffold · Build 1</span>
+        <span>Database Initialized · Build 2</span>
         <span>© {new Date().getFullYear()} coursePulse</span>
       </footer>
     </div>
