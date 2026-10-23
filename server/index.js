@@ -61,6 +61,19 @@ function requireRole(...roles) {
   };
 }
 
+function canManageCourse(req, course) {
+  return req.user.role === "admin" || course.instructor_id === req.user.id;
+}
+
+function readCourse(id) {
+  return db.prepare(`
+    SELECT c.*, u.name AS instructor_name,
+      0 AS enrolled_count
+    FROM courses c JOIN users u ON u.id = c.instructor_id
+    WHERE c.id = ?
+  `).get(id);
+}
+
 app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
 
 app.post("/api/auth/register", (req, res, next) => {
@@ -118,6 +131,27 @@ app.get("/api/auth/me", (req, res, next) => {
     res.clearCookie("courseflow_session");
     return res.json({ user: null });
   }
+});
+
+app.get("/api/courses", (req, res) => {
+  const search = typeof req.query.search === "string" ? `%${req.query.search}%` : "%";
+  const category = typeof req.query.category === "string" && req.query.category !== "All" ? req.query.category : null;
+  const courses = db.prepare(`
+    SELECT c.id, c.code, c.title, c.description, c.category, c.level, c.credits, c.capacity,
+      u.name AS instructor_name,
+      0 AS enrolled_count
+    FROM courses c JOIN users u ON u.id = c.instructor_id
+    WHERE (c.title LIKE ? OR c.code LIKE ? OR c.description LIKE ?)
+      AND (? IS NULL OR c.category = ?)
+    ORDER BY c.created_at DESC, c.id DESC
+  `).all(search, search, search, category, category);
+  res.json({ courses });
+});
+
+app.get("/api/courses/:id", (req, res) => {
+  const course = readCourse(Number(req.params.id));
+  if (!course) return res.status(404).json({ error: "Course not found." });
+  res.json({ course });
 });
 
 app.use((error, _req, res, _next) => {

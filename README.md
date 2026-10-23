@@ -1,10 +1,10 @@
-# coursePulse · Build 5
+# coursePulse · Build 6
 
-🚀 **Feature Build #5**
-> **Commit Message:** `feat: courses schema in sqlite database`
+🚀 **Feature Build #6**
+> **Commit Message:** `feat: course catalog api endpoints`
 
 ## Summary
-Add courses table in SQLite with title, code, credits, capacity, and instructor reference.
+Implement GET /api/courses with category & search filters and GET /api/courses/:id.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.
