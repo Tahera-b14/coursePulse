@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { seedDemoData } from "./seed-data.js";
 
 const directory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../data");
 const databasePath = process.env.DATABASE_PATH
@@ -37,3 +38,8 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
 `);
+
+const count = db.prepare("SELECT COUNT(*) AS total FROM users").get().total;
+if (count === 0 && process.env.NODE_ENV !== "production" && !process.env.COURSEFLOW_SEED_SCRIPT) {
+  seedDemoData(db, bcrypt, null);
+}
