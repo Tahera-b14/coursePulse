@@ -499,6 +499,43 @@ function AuthPage({ mode, onSubmit, busy, go }) {
   );
 }
 
+function CourseDetailModal({ course: initialCourse, user, enrolled, busy, onClose, onEnroll, onDrop, go }) {
+  const [course, setCourse] = useState(initialCourse);
+  const [announcements, setAnnouncements] = useState([]);
+  useEffect(() => {
+    api(`/courses/${initialCourse.id}`).then((data) => setCourse(data.course)).catch(() => {});
+    if (user && (enrolled || user.role !== "student")) {
+      api(`/courses/${initialCourse.id}/announcements`).then((data) => setAnnouncements(data.announcements)).catch(() => setAnnouncements([]));
+    }
+  }, [initialCourse.id, user, enrolled]);
+  const full = course.enrolled_count >= course.capacity;
+  const seatsLeft = Math.max(0, course.capacity - course.enrolled_count);
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card modal-wide" onClick={(event) => event.stopPropagation()}>
+        <button type="button" className="modal-close" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
+        <span className="eyebrow">{course.code} · {course.category}</span>
+        <h2>{course.title}</h2>
+        <p className="detail-description">{course.description}</p>
+        <div className="detail-facts">
+          <span><small>Instructor</small>{course.instructor_name}</span>
+          <span><small>Level</small>{course.level}</span>
+          <span><small>Credits</small>{course.credits}</span>
+          <span><small>Seats left</small>{seatsLeft} of {course.capacity}</span>
+        </div>
+        <div className="progress-track detail-capacity"><span style={{ width: `${Math.min(100, (course.enrolled_count / course.capacity) * 100)}%` }} /></div>
+        
+        <div className="detail-actions">
+          {!user && <button className="button button-primary" onClick={() => { onClose(); go("login"); }}>Sign in to enroll <Icon name="arrow" size={16} /></button>}
+          {user?.role === "student" && !enrolled && <button className="button button-primary" disabled={busy || full} onClick={async () => { await onEnroll(course.id); onClose(); }}>{full ? "Course is full" : "Enroll in course"} <Icon name="arrow" size={16} /></button>}
+          {user?.role === "student" && enrolled && <button className="button button-outline danger-button" disabled={busy} onClick={async () => { await onDrop(course.id); onClose(); }}>Drop course</button>}
+          <button className="button button-quiet" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StatCard({ label, value, icon, tint }) {
   return <div className="stat-card"><span className={`stat-icon ${tint}`}><Icon name={icon} size={19} /></span><span className="stat-value">{value}</span><span className="stat-label">{label}</span></div>;
 }
