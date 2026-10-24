@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import "./styles.css";
 
 const categories = ["All", "Development", "Data & AI", "Design", "Business"];
-const pages = ["home", "courses", "login", "register"];
+const pages = ["home", "courses", "login", "register", "dashboard"];
 
 const ConfirmContext = createContext(null);
 function useConfirm() {
@@ -533,6 +533,72 @@ function CourseDetailModal({ course: initialCourse, user, enrolled, busy, onClos
         </div>
       </div>
     </div>
+  );
+}
+
+function Dashboard({ user, data, onRefresh, notify, go, onDrop, onDetails }) {
+  if (!data) return <section className="dashboard-page page-width"><div className="loading-card">Getting your learning space ready…</div></section>;
+  const firstName = user.name.split(" ")[0];
+  if (user.role === "student") return <StudentDashboard user={user} firstName={firstName} data={data} onRefresh={onRefresh} notify={notify} go={go} onDrop={onDrop} onDetails={onDetails} />;
+  if (user.role === "admin") return <AdminDashboard user={user} firstName={firstName} data={data} go={go} notify={notify} onRefresh={onRefresh} />;
+  return <InstructorDashboard user={user} firstName={firstName} data={data} onRefresh={onRefresh} notify={notify} go={go} />;
+}
+
+function StudentDashboard({ user, firstName, data, onRefresh, notify, go, onDrop, onDetails }) {
+  const confirm = useConfirm();
+  const [selectedAssignment, setSelectedAssignment] = useState(null);
+  const [submission, setSubmission] = useState("");
+  const [submissionFile, setSubmissionFile] = useState(null);
+  const [busy, setBusy] = useState(false);
+  async function withdrawSubmission(item) {
+    if (!await confirm("Your ungraded work and any attached file will be removed.", "Unsubmit this assignment?")) return;
+    setBusy(true);
+    try {
+      const result = await api(`/assignments/${item.id}/submissions`, { method: "DELETE" });
+      notify(result.message);
+      await onRefresh();
+    } catch (error) { notify(error.message); }
+    finally { setBusy(false); }
+  }
+  async function submitWork(event) {
+    event.preventDefault();
+    if (submission.trim().length < 5 && !submissionFile) {
+      notify("Write at least 5 characters or choose a file to submit.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const body = new FormData();
+      body.append("content", submission);
+      if (submissionFile) body.append("file", submissionFile);
+      await api(`/assignments/${selectedAssignment.id}/submissions`, { method: "POST", body });
+      notify("Your work has been submitted.");
+      setSelectedAssignment(null);
+      setSubmission("");
+      setSubmissionFile(null);
+      await onRefresh();
+    } catch (error) { notify(error.message); }
+    finally { setBusy(false); }
+  }
+  return (
+    <section className="dashboard-page page-width">
+      <div className="dashboard-welcome"><div><div className="eyebrow">Your learning space</div><h1>Good things grow,<br /><span>{firstName}.</span></h1><p>Keep going. You're doing better than you think.</p></div><button className="button button-primary" onClick={() => go("courses")}>Find a course <Icon name="arrow" size={16} /></button></div>
+      <div className="dashboard-stats">
+        <StatCard label="My courses" value={data.courses.length} icon="book" tint="stat-lilac" />
+        <StatCard label="Upcoming work" value={data.assignments.filter((item) => item.grade === null && !item.submitted_at).length} icon="clock" tint="stat-peach" />
+        <StatCard label="Work reviewed" value={data.assignments.filter((item) => item.grade !== null).length} icon="check" tint="stat-green" />
+      </div>
+      <div className="dashboard-columns">
+        <section className="dashboard-panel"><div className="panel-heading"><div><span className="eyebrow">Your current semester</span><h2>My courses</h2></div><button className="text-link" onClick={() => go("courses")}>Explore more <Icon name="arrow" size={15} /></button></div>
+          {data.courses.length ? <div className="my-course-list">{data.courses.map((course, index) => <div className="my-course-row" key={course.id}><div className={`my-course-index index-${index % 3}`}><Icon name="book" size={18} /></div><div className="my-course-info"><strong>{course.title}</strong><span>{course.code} · {course.instructor_name} · {course.credits} credits</span></div><span className="row-badge">{course.assignment_count} tasks</span><div className="row-actions"><button className="text-link" onClick={() => onDetails(course)}>Details</button><button className="text-link danger-link" onClick={() => onDrop(course.id)}>Drop</button></div></div>)}</div> : <EmptyPanel title="Your first course is waiting." action="Explore courses" onClick={() => go("courses")} />}
+        </section>
+        <section className="dashboard-panel"><div className="panel-heading"><div><span className="eyebrow">Keep an eye on these</span><h2>Upcoming work</h2></div><Icon name="clock" size={18} /></div>
+          {data.assignments.length ? <div className="assignment-list">{data.assignments.map((item) => <div className="assignment-row" key={item.id}><span className="assignment-date"><strong>{new Date(item.due_date).toLocaleDateString("en", { day: "2-digit" })}</strong><small>{new Date(item.due_date).toLocaleDateString("en", { month: "short" })}</small></span><div className="assignment-info"><strong>{item.title}</strong><span>{item.course_title} · {item.max_points} points</span></div><div className="assignment-action">{item.grade !== null ? <span className="status-pill status-done">Graded · {item.grade}</span> : item.submitted_at ? <div className="submission-status"><span className="status-pill status-done">Submitted</span><button type="button" className="text-link danger-link" disabled={busy} onClick={() => withdrawSubmission(item)}>Unsubmit</button></div> : <button className="text-link" onClick={() => setSelectedAssignment(item)}>Submit <Icon name="arrow" size={14} /></button>}</div></div>)}</div> : <EmptyPanel title="A little breathing room." description="New assignments will show up here." />}
+        </section>
+      </div>
+      <AnnouncementFeed />
+      {selectedAssignment && <div className="modal-backdrop" onClick={() => setSelectedAssignment(null)}><form className="modal-card" onSubmit={submitWork} onClick={(event) => event.stopPropagation()}><button type="button" className="modal-close" onClick={() => setSelectedAssignment(null)}><Icon name="close" /></button><span className="eyebrow">Turn in your work</span><h2>{selectedAssignment.title}</h2><p>{selectedAssignment.course_title} · Due {new Date(selectedAssignment.due_date).toLocaleDateString()}</p><label>Your submission<textarea value={submission} onChange={(event) => setSubmission(event.target.value)} maxLength="10000" placeholder="Share your work or paste a link (optional if you attach a file)..." /></label><label className="upload-field">Attach a file<input type="file" accept=".pdf,.doc,.docx,.odt,.rtf,.txt,.md,.csv,.png,.jpg,.jpeg,.webp" onChange={(event) => setSubmissionFile(event.target.files?.[0] || null)} /><small>PDF, Word, text, CSV, or image · up to 10 MB</small></label>{submissionFile && <div className="selected-file"><Icon name="check" size={15} /><span>{submissionFile.name}</span><small>{(submissionFile.size / (1024 * 1024)).toFixed(2)} MB</small><button type="button" className="text-link" onClick={() => setSubmissionFile(null)}>Remove</button></div>}<button className="button button-primary button-large" disabled={busy}>{busy ? "Submitting…" : "Submit assignment"} <Icon name="arrow" size={16} /></button></form></div>}
+    </section>
   );
 }
 

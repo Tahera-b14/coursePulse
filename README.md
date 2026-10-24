@@ -1,10 +1,10 @@
-# coursePulse · Build 12
+# coursePulse · Build 13
 
-🚀 **Feature Build #12**
-> **Commit Message:** `feat: course enrollment actions on frontend cards and modal`
+🚀 **Feature Build #13**
+> **Commit Message:** `feat: student dashboard showing enrolled courses and quick stats`
 
 ## Summary
-Connect Enroll and Drop buttons on course cards and modal with toast feedback.
+Create StudentDashboard with enrolled courses list, credit summation, and quick course links.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.

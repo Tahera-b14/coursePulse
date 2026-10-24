@@ -173,6 +173,33 @@ app.delete("/api/courses/:id/enroll", requireAuth, requireRole("student"), (req,
   res.status(204).end();
 });
 
+app.get("/api/dashboard", requireAuth, (req, res) => {
+  if (req.user.role === "student") {
+    const courses = db.prepare(`
+      SELECT c.id, c.code, c.title, c.category, c.level, c.credits, u.name AS instructor_name,
+        e.enrolled_at, 0 AS assignment_count
+      FROM enrollments e JOIN courses c ON c.id = e.course_id JOIN users u ON u.id = c.instructor_id
+      WHERE e.student_id = ? ORDER BY e.enrolled_at DESC
+    `).all(req.user.id);
+    
+    return res.json({ courses, assignments: [] });
+    
+  }
+  
+  const learnerCount = db.prepare(`
+    SELECT COUNT(DISTINCT e.student_id) AS total
+    FROM enrollments e JOIN courses c ON c.id = e.course_id
+    WHERE c.instructor_id = ? AND e.status = 'active'
+  `).get(req.user.id).total;
+  const courses = db.prepare(`
+    SELECT c.id, c.code, c.title, c.description, c.category, c.level, c.credits, c.capacity, c.instructor_id,
+      (SELECT COUNT(*) FROM enrollments e WHERE e.course_id = c.id AND e.status = 'active') AS enrolled_count
+    FROM courses c WHERE c.instructor_id = ? ORDER BY c.title
+  `).all(req.user.id);
+  
+  res.json({ courses, assignments: [], learner_count: learnerCount });
+  });
+
 app.use((error, _req, res, _next) => {
   console.error("Request failed:", error);
   if (error.type === "entity.parse.failed") return res.status(400).json({ error: "Request body must contain valid JSON." });
