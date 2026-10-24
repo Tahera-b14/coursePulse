@@ -1,10 +1,10 @@
-# coursePulse · Build 11
+# coursePulse · Build 12
 
-🚀 **Feature Build #11**
-> **Commit Message:** `feat: course enrollment and drop api endpoints`
+🚀 **Feature Build #12**
+> **Commit Message:** `feat: course enrollment actions on frontend cards and modal`
 
 ## Summary
-Add POST /api/courses/:id/enroll and DELETE /api/courses/:id/enroll for student role.
+Connect Enroll and Drop buttons on course cards and modal with toast feedback.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.
