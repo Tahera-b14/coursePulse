@@ -4,10 +4,11 @@ import cookieParser from "cookie-parser";
 import express from "express";
 import fs from "node:fs";
 import jwt from "jsonwebtoken";
+import multer from "multer";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { db } from "./database.js";
+import { db, uploadsDirectory } from "./database.js";
 
 const app = express();
 const port = Number(process.env.PORT || 5000);
@@ -20,6 +21,13 @@ const isProduction = process.env.NODE_ENV === "production";
 
 app.use(express.json({ limit: "100kb" }));
 app.use(cookieParser());
+
+const maxHomeworkSize = 10 * 1024 * 1024;
+const homeworkExtensions = new Set([".pdf", ".doc", ".docx", ".odt", ".rtf", ".txt", ".md", ".csv", ".png", ".jpg", ".jpeg", ".webp"]);
+const homeworkUpload = multer({
+  dest: uploadsDirectory,
+  limits: { fileSize: maxHomeworkSize, files: 1, fields: 1, fieldSize: 10000 },
+});
 
 function publicUser(user) {
   return { id: user.id, name: user.name, email: user.email, role: user.role };
@@ -72,6 +80,14 @@ function readCourse(id) {
     FROM courses c JOIN users u ON u.id = c.instructor_id
     WHERE c.id = ?
   `).get(id);
+}
+
+function removeHomeworkFiles(fileKeys) {
+  for (const key of fileKeys) {
+    if (!key) continue;
+    const filePath = path.join(uploadsDirectory, key);
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  }
 }
 
 app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
@@ -265,7 +281,10 @@ app.delete("/api/assignments/:id", requireAuth, requireRole("instructor", "admin
   if (!assignment) return res.status(404).json({ error: "Assignment not found." });
   if (req.user.role !== "admin" && assignment.instructor_id !== req.user.id) return res.status(403).json({ error: "You cannot remove this assignment." });
   
+  const fileKeys = db.prepare("SELECT file_key FROM submissions WHERE assignment_id = ? AND file_key IS NOT NULL")
+    .all(assignment.id).map((submission) => submission.file_key);
   db.prepare("DELETE FROM assignments WHERE id = ?").run(assignment.id);
+  removeHomeworkFiles(fileKeys);
   
   res.status(204).end();
 });
@@ -319,9 +338,94 @@ app.delete("/api/courses/:id", requireAuth, requireRole("instructor", "admin"), 
   if (!course) return res.status(404).json({ error: "Course not found." });
   if (!canManageCourse(req, course)) return res.status(403).json({ error: "You can only delete courses you teach." });
   
+  const fileKeys = db.prepare(`
+    SELECT s.file_key FROM submissions s JOIN assignments a ON a.id = s.assignment_id
+    WHERE a.course_id = ? AND s.file_key IS NOT NULL
+  `).all(course.id).map((submission) => submission.file_key);
   db.prepare("DELETE FROM courses WHERE id = ?").run(course.id);
+  removeHomeworkFiles(fileKeys);
   
   res.status(204).end();
+});
+
+function checkAssignmentSubmission(req, res, next) {
+  const assignment = db.prepare(`
+    SELECT a.*, c.title AS course_title, c.id AS course_id
+    FROM assignments a JOIN courses c ON c.id = a.course_id
+    WHERE a.id = ?
+  `).get(Number(req.params.id));
+  if (!assignment) return res.status(404).json({ error: "Assignment not found." });
+  const enrolled = db.prepare("SELECT 1 FROM enrollments WHERE student_id = ? AND course_id = ?")
+    .get(req.user.id, assignment.course_id);
+  if (!enrolled) return res.status(403).json({ error: "Enroll in this course before submitting work." });
+  req.assignment = assignment;
+  next();
+}
+
+function receiveHomework(req, res, next) {
+  homeworkUpload.single("file")(req, res, (error) => {
+    if (!error) return next();
+    if (error instanceof multer.MulterError) {
+      const status = error.code === "LIMIT_FILE_SIZE" ? 413 : 400;
+      const message = error.code === "LIMIT_FILE_SIZE"
+        ? "Homework files must be 10 MB or smaller."
+        : "Only one homework file can be uploaded at a time.";
+      return res.status(status).json({ error: message });
+    }
+    return next(error);
+  });
+}
+
+app.post("/api/assignments/:id/submissions", requireAuth, requireRole("student"), checkAssignmentSubmission, receiveHomework, (req, res, next) => {
+  const content = typeof req.body?.content === "string" ? req.body.content.trim() : "";
+  if (content.length > 10000 || (!req.file && content.length < 5)) {
+    if (req.file) fs.unlinkSync(req.file.path);
+    return res.status(400).json({ error: "Add work between 5 and 10,000 characters or attach a homework file." });
+  }
+  let extension = "";
+  if (req.file) {
+    extension = path.extname(req.file.originalname).toLowerCase();
+    if (!homeworkExtensions.has(extension)) {
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({ error: "Choose a PDF, Office document, text, CSV, or image file." });
+    }
+  }
+
+  const previous = db.prepare("SELECT file_key FROM submissions WHERE assignment_id = ? AND student_id = ?")
+    .get(req.assignment.id, req.user.id);
+  const fileKey = req.file ? `${randomUUID()}${extension}` : null;
+  const finalPath = fileKey ? path.join(uploadsDirectory, fileKey) : null;
+  try {
+    if (req.file) fs.renameSync(req.file.path, finalPath);
+    db.prepare(`
+      INSERT INTO submissions (assignment_id, student_id, content, file_key, file_name, file_size)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT (assignment_id, student_id) DO UPDATE SET
+        content = excluded.content, file_key = excluded.file_key,
+        file_name = excluded.file_name, file_size = excluded.file_size,
+        submitted_at = CURRENT_TIMESTAMP
+    `).run(
+      req.assignment.id, req.user.id, content, fileKey,
+      req.file?.originalname || null, req.file?.size || null,
+    );
+  } catch (error) {
+    return next(error);
+  }
+  if (previous?.file_key && previous.file_key !== fileKey) {
+    const previousPath = path.join(uploadsDirectory, previous.file_key);
+    if (fs.existsSync(previousPath)) fs.unlinkSync(previousPath);
+  }
+  res.status(201).json({ message: "Your work has been submitted." });
+});
+
+app.delete("/api/assignments/:id/submissions", requireAuth, requireRole("student"), checkAssignmentSubmission, (req, res) => {
+  const submission = db.prepare("SELECT id, grade, file_key FROM submissions WHERE assignment_id = ? AND student_id = ?")
+    .get(req.assignment.id, req.user.id);
+  if (!submission) return res.status(404).json({ error: "There is no submission to unsubmit." });
+  if (submission.grade !== null) return res.status(409).json({ error: "A graded submission cannot be withdrawn." });
+  db.prepare("DELETE FROM submissions WHERE id = ?").run(submission.id);
+  removeHomeworkFiles([submission.file_key]);
+  res.json({ message: "Your submission has been withdrawn." });
 });
 
 app.get("/api/courses/:id/roster", requireAuth, requireRole("instructor", "admin"), (req, res) => {
