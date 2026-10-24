@@ -1,10 +1,10 @@
-# coursePulse · Build 15
+# coursePulse · Build 16
 
-🚀 **Feature Build #15**
-> **Commit Message:** `feat: course assignments api for instructors and students`
+🚀 **Feature Build #16**
+> **Commit Message:** `feat: instructor dashboard with course creation and management`
 
 ## Summary
-Add GET /api/courses/:id/assignments and POST /api/courses/:id/assignments endpoints.
+Create InstructorDashboard with teaching courses overview and Create Course modal.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.

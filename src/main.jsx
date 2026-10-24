@@ -602,6 +602,184 @@ function StudentDashboard({ user, firstName, data, onRefresh, notify, go, onDrop
   );
 }
 
+function InstructorDashboard({ user, firstName, data, onRefresh, notify, go }) {
+  const [showCourseForm, setShowCourseForm] = useState(false);
+  const [assignmentCourse, setAssignmentCourse] = useState(null);
+  const [reviewCourse, setReviewCourse] = useState(null);
+  const [reviewAssignment, setReviewAssignment] = useState(null);
+  const [submissions, setSubmissions] = useState([]);
+  const [manageCourse, setManageCourse] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [courseForm, setCourseForm] = useState({ code: "", title: "", description: "", category: "Development", level: "Beginner", credits: 3, capacity: 40 });
+  const [assignmentForm, setAssignmentForm] = useState({ title: "", description: "", dueDate: "", maxPoints: 100 });
+  async function createCourse(event) {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      await api("/courses", { method: "POST", body: JSON.stringify(courseForm) });
+      notify("Your course is live.");
+      setShowCourseForm(false);
+      setCourseForm({ code: "", title: "", description: "", category: "Development", level: "Beginner", credits: 3, capacity: 40 });
+      await onRefresh();
+    } catch (error) { notify(error.message); }
+    finally { setBusy(false); }
+  }
+  async function createAssignment(event) {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      await api(`/courses/${assignmentCourse.id}/assignments`, { method: "POST", body: JSON.stringify(assignmentForm) });
+      notify("Assignment published.");
+      setAssignmentCourse(null);
+      setAssignmentForm({ title: "", description: "", dueDate: "", maxPoints: 100 });
+      await onRefresh();
+    } catch (error) { notify(error.message); }
+    finally { setBusy(false); }
+  }
+  async function reviewWork(course, assignment = null) {
+    setBusy(true);
+    try {
+      const result = await api(`/courses/${course.id}/submissions`);
+      setSubmissions(result.submissions);
+      setReviewCourse(course);
+      setReviewAssignment(assignment);
+    } catch (error) { notify(error.message); }
+    finally { setBusy(false); }
+  }
+  async function gradeWork(submissionId, grade, feedback) {
+    try {
+      await api(`/submissions/${submissionId}/grade`, { method: "PATCH", body: JSON.stringify({ grade, feedback }) });
+      notify("Grade saved.");
+      await reviewWork(reviewCourse, reviewAssignment);
+    } catch (error) { notify(error.message); }
+  }
+  return (
+    <section className="dashboard-page page-width">
+      <div className="dashboard-welcome"><div><div className="eyebrow">Instructor workspace</div><h1>Make an impact,<br /><span>{firstName}.</span></h1><p>Your classes are taking shape. Here's what's happening.</p></div><button className="button button-primary" onClick={() => setShowCourseForm(true)}><Icon name="plus" size={17} /> Create a course</button></div>
+      <div className="dashboard-stats"><StatCard label="Courses you teach" value={data.courses.length} icon="book" tint="stat-lilac" /><StatCard label="Unique learners" value={data.learner_count} icon="users" tint="stat-green" /><StatCard label="Active assignments" value={data.assignments.length} icon="clock" tint="stat-peach" /></div>
+      <div className="dashboard-columns instructor-columns">
+        <section className="dashboard-panel"><div className="panel-heading"><div><span className="eyebrow">Your teaching space</span><h2>Courses</h2></div><span className="row-badge">{data.courses.length} total</span></div>
+          {data.courses.length ? <div className="my-course-list">{data.courses.map((course, index) => <div className="my-course-row instructor-row" key={course.id}><div className={`my-course-index index-${index % 3}`}><Icon name="book" size={18} /></div><div className="my-course-info"><strong>{course.title}</strong><span>{course.code} · {course.enrolled_count} learners</span></div><div className="row-actions"><button className="text-link" onClick={() => setManageCourse(course)}>Manage</button><button className="text-link" onClick={() => reviewWork(course)}>Review work</button><button className="text-link" onClick={() => setAssignmentCourse(course)}>New assignment <Icon name="plus" size={14} /></button></div></div>)}</div> : <EmptyPanel title="Ready to teach something?" action="Create a course" onClick={() => setShowCourseForm(true)} />}
+        </section>
+        <section className="dashboard-panel"><div className="panel-heading"><div><span className="eyebrow">What's on the horizon</span><h2>Assignments</h2></div><Icon name="clock" size={18} /></div>
+          {data.assignments.length ? <div className="assignment-list">{data.assignments.map((item) => <button type="button" className="assignment-row assignment-review-row" key={item.id} onClick={() => reviewWork({ id: item.course_id, code: item.code, title: item.course_title }, item)} disabled={busy} aria-label={`Review ${item.title}, ${item.submission_count} turned in`}><span className="assignment-date"><strong>{new Date(item.due_date).toLocaleDateString("en", { day: "2-digit" })}</strong><small>{new Date(item.due_date).toLocaleDateString("en", { month: "short" })}</small></span><span className="assignment-info"><strong>{item.title}</strong><span>{item.course_title}</span></span><span className="assignment-review-action"><span className="status-pill">{item.submission_count} turned in</span><span className="assignment-review-link">Review <Icon name="arrow" size={13} /></span></span></button>)}</div> : <EmptyPanel title="No assignments just yet." description="Create one from any of your courses." />}
+        </section>
+      </div>
+      {showCourseForm && <div className="modal-backdrop" onClick={() => setShowCourseForm(false)}><form className="modal-card modal-wide" onSubmit={createCourse} onClick={(event) => event.stopPropagation()}><button type="button" className="modal-close" onClick={() => setShowCourseForm(false)}><Icon name="close" /></button><span className="eyebrow">Add to the catalog</span><h2>Create a course</h2><div className="form-grid"><label>Course code<input value={courseForm.code} onChange={(event) => setCourseForm({ ...courseForm, code: event.target.value })} required maxLength="12" placeholder="CS240" /></label><label>Course title<input value={courseForm.title} onChange={(event) => setCourseForm({ ...courseForm, title: event.target.value })} required maxLength="100" placeholder="Creative coding" /></label><label>Category<select value={courseForm.category} onChange={(event) => setCourseForm({ ...courseForm, category: event.target.value })}>{categories.slice(1).map((item) => <option key={item}>{item}</option>)}</select></label><label>Level<select value={courseForm.level} onChange={(event) => setCourseForm({ ...courseForm, level: event.target.value })}><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select></label><label>Credits<input type="number" min="1" max="12" value={courseForm.credits} onChange={(event) => setCourseForm({ ...courseForm, credits: event.target.value })} required /></label><label>Capacity<input type="number" min="1" max="500" value={courseForm.capacity} onChange={(event) => setCourseForm({ ...courseForm, capacity: event.target.value })} required /></label><label className="full-field">Description<textarea value={courseForm.description} onChange={(event) => setCourseForm({ ...courseForm, description: event.target.value })} required maxLength="1200" placeholder="What will learners explore?" /></label></div><button className="button button-primary button-large" disabled={busy}>{busy ? "Creating…" : "Create course"} <Icon name="arrow" size={16} /></button></form></div>}
+      {assignmentCourse && <div className="modal-backdrop" onClick={() => setAssignmentCourse(null)}><form className="modal-card" onSubmit={createAssignment} onClick={(event) => event.stopPropagation()}><button type="button" className="modal-close" onClick={() => setAssignmentCourse(null)}><Icon name="close" /></button><span className="eyebrow">{assignmentCourse.code} · {assignmentCourse.title}</span><h2>New assignment</h2><label>Assignment title<input value={assignmentForm.title} onChange={(event) => setAssignmentForm({ ...assignmentForm, title: event.target.value })} required /></label><label>Instructions<textarea value={assignmentForm.description} onChange={(event) => setAssignmentForm({ ...assignmentForm, description: event.target.value })} required /></label><div className="form-grid"><label>Due date<input type="datetime-local" value={assignmentForm.dueDate} onChange={(event) => setAssignmentForm({ ...assignmentForm, dueDate: event.target.value })} required /></label><label>Max points<input type="number" min="1" max="1000" value={assignmentForm.maxPoints} onChange={(event) => setAssignmentForm({ ...assignmentForm, maxPoints: event.target.value })} required /></label></div><button className="button button-primary button-large" disabled={busy}>{busy ? "Publishing…" : "Publish assignment"} <Icon name="arrow" size={16} /></button></form></div>}
+      <AnnouncementFeed />
+      {manageCourse && <ManageCourseModal course={manageCourse} notify={notify} onClose={() => setManageCourse(null)} onChanged={onRefresh} />}
+      {reviewCourse && <div className="modal-backdrop" onClick={() => setReviewCourse(null)}><div className="modal-card modal-wide review-modal" onClick={(event) => event.stopPropagation()}><button type="button" className="modal-close" onClick={() => setReviewCourse(null)}><Icon name="close" /></button><span className="eyebrow">{reviewCourse.code} · Instructor workspace</span><h2>Review learner work</h2><p>{reviewAssignment ? reviewAssignment.title : reviewCourse.title}</p>{submissions.filter((item) => !reviewAssignment || item.assignment_id === reviewAssignment.id).length ? <div className="submission-list">{submissions.filter((item) => !reviewAssignment || item.assignment_id === reviewAssignment.id).map((item) => <SubmissionReview key={item.id} item={item} onGrade={gradeWork} />)}</div> : <EmptyPanel title="Nothing to review yet." description="Submissions from your learners will appear here." />}</div></div>}
+    </section>
+  );
+}
+
+function ManageCourseModal({ course: summary, notify, onClose, onChanged }) {
+  const confirm = useConfirm();
+  const [tab, setTab] = useState("details");
+  const [form, setForm] = useState(null);
+  const [roster, setRoster] = useState([]);
+  const [assignments, setAssignments] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
+  const [post, setPost] = useState({ title: "", body: "" });
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const [courseData, rosterData, assignmentData, announcementData] = await Promise.all([
+        api(`/courses/${summary.id}`), api(`/courses/${summary.id}/roster`),
+        api(`/courses/${summary.id}/assignments`), api(`/courses/${summary.id}/announcements`),
+      ]);
+      const c = courseData.course;
+      setForm((current) => current || { title: c.title, description: c.description, category: c.category, level: c.level, credits: c.credits, capacity: c.capacity });
+      setRoster(rosterData.students);
+      setAssignments(assignmentData.assignments);
+      setAnnouncements(announcementData.announcements);
+    } catch (error) { notify(error.message); }
+  }, [summary.id, notify]);
+  useEffect(() => { load(); }, [load]);
+
+  async function run(action, message) {
+    setBusy(true);
+    try {
+      await action();
+      if (message) notify(message);
+      await Promise.all([load(), onChanged()]);
+      return true;
+    } catch (error) { notify(error.message); return false; }
+    finally { setBusy(false); }
+  }
+  const saveCourse = (event) => { event.preventDefault(); run(() => api(`/courses/${summary.id}`, { method: "PUT", body: JSON.stringify(form) }), "Course updated."); };
+  async function deleteCourse() {
+    if (!await confirm(`Enrollments, assignments, and submissions for ${summary.title} will also be removed.`, "Delete this course?")) return;
+    setBusy(true);
+    try {
+      await api(`/courses/${summary.id}`, { method: "DELETE" });
+      notify("Course deleted.");
+      onClose();
+      await onChanged();
+    } catch (error) { notify(error.message); }
+    finally { setBusy(false); }
+  }
+  async function postAnnouncement(event) {
+    event.preventDefault();
+    if (await run(() => api(`/courses/${summary.id}/announcements`, { method: "POST", body: JSON.stringify(post) }), "Announcement posted.")) setPost({ title: "", body: "" });
+  }
+  const removeAnnouncement = async (id) => {
+    if (await confirm("Learners will no longer see this course announcement.", "Remove this announcement?")) {
+      await run(() => api(`/announcements/${id}`, { method: "DELETE" }), "Announcement removed.");
+    }
+  };
+  const removeAssignment = async (id) => {
+    if (await confirm("Submissions and grades for this assignment will also be deleted.", "Delete this assignment?")) {
+      await run(() => api(`/assignments/${id}`, { method: "DELETE" }), "Assignment deleted.");
+    }
+  };
+  const removeLearner = async (student) => {
+    if (!await confirm(`${student.name} will lose access to this course. A notification will be sent to them.`, "Unenroll this learner?")) return;
+    await run(() => api(`/courses/${summary.id}/roster/${student.id}`, { method: "DELETE" }), `${student.name} was unenrolled and notified.`);
+  };
+
+  const tabs = [["details", "Details"], ["roster", `Roster (${roster.length})`], ["assignments", `Assignments (${assignments.length})`], ["announcements", "Announcements"]];
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card modal-wide review-modal" onClick={(event) => event.stopPropagation()}>
+        <button type="button" className="modal-close" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
+        <span className="eyebrow">{summary.code} · Manage course</span>
+        <h2>{summary.title}</h2>
+        <div className="tab-row" role="tablist">{tabs.map(([key, label]) => <button key={key} role="tab" aria-selected={tab === key} className={tab === key ? "category-pill selected" : "category-pill"} onClick={() => setTab(key)}>{label}</button>)}</div>
+        <div className="manage-course-content">
+        {tab === "details" && (form ? (
+          <form onSubmit={saveCourse}>
+            <div className="form-grid">
+              <label className="full-field">Title<input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required maxLength="100" /></label>
+              <label>Category<select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })}>{categories.slice(1).map((item) => <option key={item}>{item}</option>)}</select></label>
+              <label>Level<select value={form.level} onChange={(event) => setForm({ ...form, level: event.target.value })}><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select></label>
+              <label>Credits<input type="number" min="1" max="12" value={form.credits} onChange={(event) => setForm({ ...form, credits: event.target.value })} required /></label>
+              <label>Capacity<input type="number" min="1" max="500" value={form.capacity} onChange={(event) => setForm({ ...form, capacity: event.target.value })} required /></label>
+              <label className="full-field">Description<textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} required maxLength="1200" /></label>
+            </div>
+            <div className="detail-actions"><button className="button button-primary" disabled={busy}>Save changes</button><button type="button" className="button button-outline danger-button" disabled={busy} onClick={deleteCourse}><Icon name="trash" size={15} /> Delete course</button></div>
+          </form>
+        ) : <div className="loading-card">Loading…</div>)}
+        {tab === "roster" && (roster.length ? <div className="table-scroll"><table><thead><tr><th>Learner</th><th>Email</th><th>Enrolled</th><th /></tr></thead><tbody>{roster.map((student) => <tr key={student.id}><td><strong>{student.name}</strong></td><td><a href={`mailto:${student.email}`}>{student.email}</a></td><td>{formatDate(student.enrolled_at)}</td><td><button type="button" className="text-link danger-link" disabled={busy} onClick={() => removeLearner(student)}>Unenroll</button></td></tr>)}</tbody></table></div> : <EmptyPanel title="No learners yet." description="Students who enroll will appear here." />)}
+        {tab === "assignments" && (assignments.length ? <div className="assignment-list">{assignments.map((item) => <div className="assignment-row" key={item.id}><span className="assignment-date"><strong>{new Date(item.due_date).toLocaleDateString("en", { day: "2-digit" })}</strong><small>{new Date(item.due_date).toLocaleDateString("en", { month: "short" })}</small></span><div className="assignment-info"><strong>{item.title}</strong><span>{item.max_points} points · {item.description}</span></div><button className="icon-button" onClick={() => removeAssignment(item.id)} aria-label={`Delete ${item.title}`}><Icon name="trash" size={15} /></button></div>)}</div> : <EmptyPanel title="No assignments yet." description="Use “New assignment” on your dashboard to add one." />)}
+        {tab === "announcements" && (
+          <>
+            <form className="announcement-form" onSubmit={postAnnouncement}>
+              <label>Title<input value={post.title} onChange={(event) => setPost({ ...post, title: event.target.value })} required maxLength="120" placeholder="Class moved to Thursday" /></label>
+              <label>Message<textarea value={post.body} onChange={(event) => setPost({ ...post, body: event.target.value })} required maxLength="4000" placeholder="Share an update with your learners…" /></label>
+              <button className="button button-primary" disabled={busy}><Icon name="bell" size={15} /> Post announcement</button>
+            </form>
+            <div className="announcement-list">{announcements.map((item) => <div className="announcement-item" key={item.id}><div className="announcement-top"><strong>{item.title}</strong><button className="icon-button" onClick={() => removeAnnouncement(item.id)} aria-label="Remove announcement"><Icon name="trash" size={14} /></button></div><p>{item.body}</p><small>{item.author_name} · {formatDate(item.created_at)}</small></div>)}</div>
+          </>
+        )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StatCard({ label, value, icon, tint }) {
   return <div className="stat-card"><span className={`stat-icon ${tint}`}><Icon name={icon} size={19} /></span><span className="stat-value">{value}</span><span className="stat-label">{label}</span></div>;
 }

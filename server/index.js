@@ -270,6 +270,72 @@ app.delete("/api/assignments/:id", requireAuth, requireRole("instructor", "admin
   res.status(204).end();
 });
 
+app.post("/api/courses", requireAuth, requireRole("instructor", "admin"), (req, res) => {
+  const { code, title, description, category, level = "Beginner", credits = 3, capacity = 40 } = req.body || {};
+  if ([code, title, description, category].some((value) => typeof value !== "string" || !value.trim())) {
+    return res.status(400).json({ error: "Course code, title, description, and category are required." });
+  }
+  if (!Number.isInteger(Number(credits)) || Number(credits) < 1 || Number(credits) > 12) {
+    return res.status(400).json({ error: "Credits must be a whole number from 1 to 12." });
+  }
+  if (!Number.isInteger(Number(capacity)) || Number(capacity) < 1 || Number(capacity) > 500) {
+    return res.status(400).json({ error: "Capacity must be a whole number from 1 to 500." });
+  }
+  try {
+    const result = db.prepare(`
+      INSERT INTO courses (code, title, description, category, level, credits, capacity, instructor_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(code.trim().toUpperCase(), title.trim(), description.trim(), category.trim(), String(level).trim(), Number(credits), Number(capacity), req.user.id);
+    res.status(201).json({ course: readCourse(result.lastInsertRowid) });
+  } catch (error) {
+    if (error.code === "SQLITE_CONSTRAINT_UNIQUE") return res.status(409).json({ error: "That course code is already in use." });
+    throw error;
+  }
+});
+
+app.put("/api/courses/:id", requireAuth, requireRole("instructor", "admin"), (req, res) => {
+  const course = readCourse(Number(req.params.id));
+  if (!course) return res.status(404).json({ error: "Course not found." });
+  if (!canManageCourse(req, course)) return res.status(403).json({ error: "You can only edit courses you teach." });
+  const { title, description, category, level, credits, capacity } = req.body || {};
+  if ([title, description, category, level].some((value) => typeof value !== "string" || !value.trim())) {
+    return res.status(400).json({ error: "Title, description, category, and level are required." });
+  }
+  const update = db.prepare(`
+    UPDATE courses SET title = ?, description = ?, category = ?, level = ?, credits = ?, capacity = ?
+    WHERE id = ?
+  `);
+  try {
+    update.run(title.trim(), description.trim(), category.trim(), level.trim(), Number(credits), Number(capacity), course.id);
+  } catch (error) {
+    if (error.code === "SQLITE_CONSTRAINT_CHECK") return res.status(400).json({ error: "Credits or capacity are outside the allowed range." });
+    throw error;
+  }
+  res.json({ course: readCourse(course.id) });
+});
+
+app.delete("/api/courses/:id", requireAuth, requireRole("instructor", "admin"), (req, res) => {
+  const course = readCourse(Number(req.params.id));
+  if (!course) return res.status(404).json({ error: "Course not found." });
+  if (!canManageCourse(req, course)) return res.status(403).json({ error: "You can only delete courses you teach." });
+  
+  db.prepare("DELETE FROM courses WHERE id = ?").run(course.id);
+  
+  res.status(204).end();
+});
+
+app.get("/api/courses/:id/roster", requireAuth, requireRole("instructor", "admin"), (req, res) => {
+  const course = readCourse(Number(req.params.id));
+  if (!course) return res.status(404).json({ error: "Course not found." });
+  if (!canManageCourse(req, course)) return res.status(403).json({ error: "You can only view rosters for courses you teach." });
+  const students = db.prepare(`
+    SELECT u.id, u.name, u.email, e.enrolled_at
+    FROM enrollments e JOIN users u ON u.id = e.student_id
+    WHERE e.course_id = ? AND e.status = 'active' AND u.role = 'student' ORDER BY u.name
+  `).all(course.id);
+  res.json({ students });
+});
+
 app.use((error, _req, res, _next) => {
   console.error("Request failed:", error);
   if (error.type === "entity.parse.failed") return res.status(400).json({ error: "Request body must contain valid JSON." });
