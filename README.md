@@ -1,10 +1,10 @@
-# coursePulse · Build 13
+# coursePulse · Build 13-fix
 
-🚀 **Feature Build #13**
-> **Commit Message:** `feat: student dashboard showing enrolled courses and quick stats`
+🐛 **Bug Fix Build**
+> **Commit Message:** `fix: prevent over-enrollment race condition with sqlite transaction`
 
 ## Summary
-Create StudentDashboard with enrolled courses list, credit summation, and quick course links.
+Wrap enrollment capacity check and insert inside an atomic SQLite transaction and add busy UI lock.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.

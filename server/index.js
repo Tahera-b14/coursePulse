@@ -155,14 +155,28 @@ app.get("/api/courses/:id", (req, res) => {
 });
 
 app.post("/api/courses/:id/enroll", requireAuth, requireRole("student"), (req, res) => {
-  const course = readCourse(Number(req.params.id));
-  if (!course) return res.status(404).json({ error: "Course not found." });
-  if (course.enrolled_count >= course.capacity) return res.status(409).json({ error: "This course is full." });
-  try {
+  const courseId = Number(req.params.id);
+  const enrollTx = db.transaction(() => {
+    const course = readCourse(courseId);
+    if (!course) {
+      const err = new Error("Course not found.");
+      err.status = 404;
+      throw err;
+    }
+    if (course.enrolled_count >= course.capacity) {
+      const err = new Error("This course is full.");
+      err.status = 409;
+      throw err;
+    }
     db.prepare("INSERT INTO enrollments (student_id, course_id) VALUES (?, ?)").run(req.user.id, course.id);
+    return course;
+  });
+  try {
+    const course = enrollTx();
     res.status(201).json({ message: `You are enrolled in ${course.title}.` });
   } catch (error) {
     if (error.code === "SQLITE_CONSTRAINT_UNIQUE") return res.status(409).json({ error: "You are already enrolled in this course." });
+    if (error.status) return res.status(error.status).json({ error: error.message });
     throw error;
   }
 });
