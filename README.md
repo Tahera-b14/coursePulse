@@ -1,10 +1,10 @@
-# coursePulse · Build 14
+# coursePulse · Build 15
 
-🚀 **Feature Build #14**
-> **Commit Message:** `feat: assignments schema in sqlite database`
+🚀 **Feature Build #15**
+> **Commit Message:** `feat: course assignments api for instructors and students`
 
 ## Summary
-Add assignments table with course_id, title, description, due date, and max points.
+Add GET /api/courses/:id/assignments and POST /api/courses/:id/assignments endpoints.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.

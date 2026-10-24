@@ -191,12 +191,19 @@ app.get("/api/dashboard", requireAuth, (req, res) => {
   if (req.user.role === "student") {
     const courses = db.prepare(`
       SELECT c.id, c.code, c.title, c.category, c.level, c.credits, u.name AS instructor_name,
-        e.enrolled_at, 0 AS assignment_count
+        e.enrolled_at, (SELECT COUNT(*) FROM assignments a WHERE a.course_id = c.id) AS assignment_count
       FROM enrollments e JOIN courses c ON c.id = e.course_id JOIN users u ON u.id = c.instructor_id
       WHERE e.student_id = ? ORDER BY e.enrolled_at DESC
     `).all(req.user.id);
     
-    return res.json({ courses, assignments: [] });
+    const assignments = db.prepare(`
+      SELECT a.id, a.title, a.due_date, a.max_points, c.title AS course_title, s.grade, s.submitted_at
+      FROM assignments a JOIN courses c ON c.id = a.course_id
+      JOIN enrollments e ON e.course_id = c.id AND e.student_id = ?
+      LEFT JOIN submissions s ON s.assignment_id = a.id AND s.student_id = ?
+      ORDER BY a.due_date ASC LIMIT 8
+    `).all(req.user.id, req.user.id);
+    return res.json({ courses, assignments });
     
   }
   
@@ -211,8 +218,57 @@ app.get("/api/dashboard", requireAuth, (req, res) => {
     FROM courses c WHERE c.instructor_id = ? ORDER BY c.title
   `).all(req.user.id);
   
-  res.json({ courses, assignments: [], learner_count: learnerCount });
+  const assignments = db.prepare(`
+    SELECT a.id, a.course_id, a.title, a.due_date, a.max_points, c.code, c.title AS course_title,
+      (SELECT COUNT(*) FROM submissions s WHERE s.assignment_id = a.id) AS submission_count
+    FROM assignments a JOIN courses c ON c.id = a.course_id
+    WHERE c.instructor_id = ? ORDER BY a.due_date LIMIT 8
+  `).all(req.user.id);
+  res.json({ courses, assignments, learner_count: learnerCount });
   });
+
+app.get("/api/courses/:id/assignments", requireAuth, (req, res) => {
+  const course = readCourse(Number(req.params.id));
+  if (!course) return res.status(404).json({ error: "Course not found." });
+  const enrolled = db.prepare("SELECT 1 FROM enrollments WHERE student_id = ? AND course_id = ?").get(req.user.id, course.id);
+  if (req.user.role === "student" && !enrolled) return res.status(403).json({ error: "Enroll in this course to view its assignments." });
+  if (req.user.role === "instructor" && !canManageCourse(req, course)) return res.status(403).json({ error: "You cannot view assignments for this course." });
+  const assignments = db.prepare(`
+    SELECT a.*, s.content AS submission_content, s.grade, s.feedback, s.submitted_at
+    FROM assignments a LEFT JOIN submissions s ON s.assignment_id = a.id AND s.student_id = ?
+    WHERE a.course_id = ? ORDER BY a.due_date
+  `).all(req.user.id, course.id);
+  res.json({ assignments });
+});
+
+app.post("/api/courses/:id/assignments", requireAuth, requireRole("instructor", "admin"), (req, res) => {
+  const course = readCourse(Number(req.params.id));
+  if (!course) return res.status(404).json({ error: "Course not found." });
+  if (!canManageCourse(req, course)) return res.status(403).json({ error: "You can only manage assignments for courses you teach." });
+  const { title, description, dueDate, maxPoints = 100 } = req.body || {};
+  if ([title, description, dueDate].some((value) => typeof value !== "string" || !value.trim()) || Number.isNaN(Date.parse(dueDate))) {
+    return res.status(400).json({ error: "A title, description, and valid due date are required." });
+  }
+  if (!Number.isInteger(Number(maxPoints)) || Number(maxPoints) < 1 || Number(maxPoints) > 1000) {
+    return res.status(400).json({ error: "Maximum points must be a whole number from 1 to 1000." });
+  }
+  const result = db.prepare(`
+    INSERT INTO assignments (course_id, title, description, due_date, max_points) VALUES (?, ?, ?, ?, ?)
+  `).run(course.id, title.trim(), description.trim(), new Date(dueDate).toISOString(), Number(maxPoints));
+  res.status(201).json({ assignment: db.prepare("SELECT * FROM assignments WHERE id = ?").get(result.lastInsertRowid) });
+});
+
+app.delete("/api/assignments/:id", requireAuth, requireRole("instructor", "admin"), (req, res) => {
+  const assignment = db.prepare(`
+    SELECT a.id, c.instructor_id FROM assignments a JOIN courses c ON c.id = a.course_id WHERE a.id = ?
+  `).get(Number(req.params.id));
+  if (!assignment) return res.status(404).json({ error: "Assignment not found." });
+  if (req.user.role !== "admin" && assignment.instructor_id !== req.user.id) return res.status(403).json({ error: "You cannot remove this assignment." });
+  
+  db.prepare("DELETE FROM assignments WHERE id = ?").run(assignment.id);
+  
+  res.status(204).end();
+});
 
 app.use((error, _req, res, _next) => {
   console.error("Request failed:", error);
