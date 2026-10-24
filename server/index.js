@@ -134,7 +134,7 @@ app.get("/api/auth/me", (req, res, next) => {
 });
 
 app.get("/api/courses", (req, res) => {
-  const search = typeof req.query.search === "string" ? `%${req.query.search}%` : "%";
+  const search = typeof req.query.search === "string" ? `%${req.query.search.trim()}%` : "%";
   const category = typeof req.query.category === "string" && req.query.category !== "All" ? req.query.category : null;
   const courses = db.prepare(`
     SELECT c.id, c.code, c.title, c.description, c.category, c.level, c.credits, c.capacity,

@@ -1,10 +1,10 @@
-# coursePulse · Build 8
+# coursePulse · Build 8-fix
 
-🚀 **Feature Build #8**
-> **Commit Message:** `feat: course catalog frontend page with search and category filters`
+🐛 **Bug Fix Build**
+> **Commit Message:** `fix: sanitize course search query and handle missing descriptions`
 
 ## Summary
-Create CoursesPage with category filter pills, live search bar, and pastel course cards.
+Guard search query processing against null fields and sanitize whitespace.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.
