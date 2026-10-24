@@ -1,10 +1,10 @@
-# coursePulse · Build 19
+# coursePulse · Build 19-fix
 
-🚀 **Feature Build #19**
-> **Commit Message:** `feat: homework file upload handling with multer and withdraw api`
+🐛 **Bug Fix Build**
+> **Commit Message:** `fix: delete temporary uploaded files if submission validation fails`
 
 ## Summary
-Add Multer upload middleware (10MB limit), submission API, and withdraw endpoint for ungraded work.
+Ensure orphaned temporary upload files are cleaned up if submission validation or database insertion fails.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.

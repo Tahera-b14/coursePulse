@@ -409,6 +409,7 @@ app.post("/api/assignments/:id/submissions", requireAuth, requireRole("student")
       req.file?.originalname || null, req.file?.size || null,
     );
   } catch (error) {
+    if (req.file && fs.existsSync(finalPath)) fs.unlinkSync(finalPath);
     return next(error);
   }
   if (previous?.file_key && previous.file_key !== fileKey) {
