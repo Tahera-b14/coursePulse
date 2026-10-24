@@ -68,7 +68,7 @@ function canManageCourse(req, course) {
 function readCourse(id) {
   return db.prepare(`
     SELECT c.*, u.name AS instructor_name,
-      0 AS enrolled_count
+      (SELECT COUNT(*) FROM enrollments e WHERE e.course_id = c.id AND e.status = 'active') AS enrolled_count
     FROM courses c JOIN users u ON u.id = c.instructor_id
     WHERE c.id = ?
   `).get(id);
@@ -139,7 +139,7 @@ app.get("/api/courses", (req, res) => {
   const courses = db.prepare(`
     SELECT c.id, c.code, c.title, c.description, c.category, c.level, c.credits, c.capacity,
       u.name AS instructor_name,
-      0 AS enrolled_count
+      (SELECT COUNT(*) FROM enrollments e WHERE e.course_id = c.id AND e.status = 'active') AS enrolled_count
     FROM courses c JOIN users u ON u.id = c.instructor_id
     WHERE (c.title LIKE ? OR c.code LIKE ? OR c.description LIKE ?)
       AND (? IS NULL OR c.category = ?)

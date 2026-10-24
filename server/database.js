@@ -37,6 +37,15 @@ db.exec(`
     instructor_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS enrollments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'completed')),
+    enrolled_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (student_id, course_id)
+  );
 `);
 
 const count = db.prepare("SELECT COUNT(*) AS total FROM users").get().total;

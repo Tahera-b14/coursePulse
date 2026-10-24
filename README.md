@@ -1,10 +1,10 @@
-# coursePulse · Build 9
+# coursePulse · Build 10
 
-🚀 **Feature Build #9**
-> **Commit Message:** `feat: interactive course details modal`
+🚀 **Feature Build #10**
+> **Commit Message:** `feat: enrollments schema in sqlite database`
 
 ## Summary
-Add CourseDetailModal displaying course syllabus, instructor bio, credit hours, and capacity bar.
+Create enrollments table with unique constraint on (student_id, course_id) and active status.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.
