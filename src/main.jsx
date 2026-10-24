@@ -406,6 +406,30 @@ function HomePage({ go, courses, user }) {
   );
 }
 
+function CoursesPage({ courses, allCourses, query, setQuery, category, setCategory, onEnroll, busy, user, go, enrolledIds, onDetails, savedCourses, onToggleSaved }) {
+  return (
+    <section className="catalog-page page-width">
+      <div className="catalog-intro">
+        <div className="eyebrow">Your next chapter starts here</div>
+        <h1>A course for<br /><span>your kind of curious.</span></h1>
+        <p>Big idea, new skill, fresh direction. Find a class that meets you where you are and takes you somewhere new.</p>
+        <div className="catalog-stats"><span><strong>{allCourses.length.toString().padStart(2, "0")}</strong> thoughtfully made courses</span><i /><span><strong>04</strong> areas to explore</span></div>
+      </div>
+      <div className="catalog-toolbar">
+        <div className="search-wrap"><Icon name="search" size={19} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search courses, skills, or topics..." aria-label="Search courses" /><kbd>⌘ K</kbd></div>
+        <span className="result-count">{courses.length} {courses.length === 1 ? "course" : "courses"}</span>
+      </div>
+      <div className="category-pills" role="group" aria-label="Filter courses by category">
+        {categories.map((item) => <button key={item} className={category === item ? "category-pill selected" : "category-pill"} onClick={() => setCategory(item)}>{item}</button>)}
+      </div>
+      {courses.length > 0 ? (
+        <div className="course-grid">{courses.map((course) => <CourseCard key={course.id} course={course} onEnroll={onEnroll} busy={busy} user={user} go={go} enrolled={enrolledIds?.has(course.id)} onDetails={onDetails} saved={savedCourses.some((saved) => saved.id === course.id)} onToggleSaved={onToggleSaved} />)}</div>
+      ) : <div className="empty-state"><span className="empty-icon"><Icon name="search" size={24} /></span><h3>No courses found</h3><p>Try a different search or choose another category.</p><button className="button button-outline" onClick={() => { setQuery(""); setCategory("All"); }}>Clear filters</button></div>}
+      <div className="catalog-bottom">A good course does more than teach. It opens something up.</div>
+    </section>
+  );
+}
+
 function CourseCard({ course, onEnroll, busy, user, go, compact = false, enrolled = false, onDetails, saved = false, onToggleSaved }) {
   const full = course.enrolled_count >= course.capacity;
   let label = "Get started";

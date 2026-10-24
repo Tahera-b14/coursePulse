@@ -1,10 +1,10 @@
-# coursePulse · Build 7
+# coursePulse · Build 8
 
-🚀 **Feature Build #7**
-> **Commit Message:** `feat: demo data seed script for bangladesh community`
+🚀 **Feature Build #8**
+> **Commit Message:** `feat: course catalog frontend page with search and category filters`
 
 ## Summary
-Add database seeding script with demo teachers, students, and courses across four categories.
+Create CoursesPage with category filter pills, live search bar, and pastel course cards.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.
