@@ -10,6 +10,8 @@ const databasePath = process.env.DATABASE_PATH
   ? path.resolve(process.env.DATABASE_PATH)
   : path.join(directory, "courseflow.sqlite");
 fs.mkdirSync(path.dirname(databasePath), { recursive: true });
+export const uploadsDirectory = path.join(path.dirname(databasePath), "uploads");
+fs.mkdirSync(uploadsDirectory, { recursive: true });
 
 export const db = new Database(databasePath);
 db.pragma("journal_mode = WAL");
@@ -56,9 +58,25 @@ db.exec(`
     max_points INTEGER NOT NULL DEFAULT 100 CHECK (max_points BETWEEN 1 AND 1000),
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS submissions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    assignment_id INTEGER NOT NULL REFERENCES assignments(id) ON DELETE CASCADE,
+    student_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    content TEXT NOT NULL,
+    grade REAL,
+    feedback TEXT,
+    submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (assignment_id, student_id)
+  );
 `);
+
+const submissionColumns = db.prepare("PRAGMA table_info(submissions)").all().map((column) => column.name);
+if (!submissionColumns.includes("file_key")) db.exec("ALTER TABLE submissions ADD COLUMN file_key TEXT");
+if (!submissionColumns.includes("file_name")) db.exec("ALTER TABLE submissions ADD COLUMN file_name TEXT");
+if (!submissionColumns.includes("file_size")) db.exec("ALTER TABLE submissions ADD COLUMN file_size INTEGER");
 
 const count = db.prepare("SELECT COUNT(*) AS total FROM users").get().total;
 if (count === 0 && process.env.NODE_ENV !== "production" && !process.env.COURSEFLOW_SEED_SCRIPT) {
-  seedDemoData(db, bcrypt, null);
+  seedDemoData(db, bcrypt, uploadsDirectory);
 }
