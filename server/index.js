@@ -154,6 +154,25 @@ app.get("/api/courses/:id", (req, res) => {
   res.json({ course });
 });
 
+app.post("/api/courses/:id/enroll", requireAuth, requireRole("student"), (req, res) => {
+  const course = readCourse(Number(req.params.id));
+  if (!course) return res.status(404).json({ error: "Course not found." });
+  if (course.enrolled_count >= course.capacity) return res.status(409).json({ error: "This course is full." });
+  try {
+    db.prepare("INSERT INTO enrollments (student_id, course_id) VALUES (?, ?)").run(req.user.id, course.id);
+    res.status(201).json({ message: `You are enrolled in ${course.title}.` });
+  } catch (error) {
+    if (error.code === "SQLITE_CONSTRAINT_UNIQUE") return res.status(409).json({ error: "You are already enrolled in this course." });
+    throw error;
+  }
+});
+
+app.delete("/api/courses/:id/enroll", requireAuth, requireRole("student"), (req, res) => {
+  const result = db.prepare("DELETE FROM enrollments WHERE student_id = ? AND course_id = ?").run(req.user.id, Number(req.params.id));
+  if (result.changes === 0) return res.status(404).json({ error: "You are not enrolled in this course." });
+  res.status(204).end();
+});
+
 app.use((error, _req, res, _next) => {
   console.error("Request failed:", error);
   if (error.type === "entity.parse.failed") return res.status(400).json({ error: "Request body must contain valid JSON." });

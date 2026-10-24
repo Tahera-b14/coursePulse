@@ -1,10 +1,10 @@
-# coursePulse · Build 10
+# coursePulse · Build 11
 
-🚀 **Feature Build #10**
-> **Commit Message:** `feat: enrollments schema in sqlite database`
+🚀 **Feature Build #11**
+> **Commit Message:** `feat: course enrollment and drop api endpoints`
 
 ## Summary
-Create enrollments table with unique constraint on (student_id, course_id) and active status.
+Add POST /api/courses/:id/enroll and DELETE /api/courses/:id/enroll for student role.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.
