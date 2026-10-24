@@ -1,10 +1,10 @@
-# coursePulse · Build 16
+# coursePulse · Build 17
 
-🚀 **Feature Build #16**
-> **Commit Message:** `feat: instructor dashboard with course creation and management`
+🚀 **Feature Build #17**
+> **Commit Message:** `feat: instructor assignment creation and management ui`
 
 ## Summary
-Create InstructorDashboard with teaching courses overview and Create Course modal.
+Add assignment creation form with due date picker and point allocation inside InstructorDashboard.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.
