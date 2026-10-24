@@ -46,6 +46,16 @@ db.exec(`
     enrolled_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (student_id, course_id)
   );
+
+  CREATE TABLE IF NOT EXISTS assignments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    due_date TEXT NOT NULL,
+    max_points INTEGER NOT NULL DEFAULT 100 CHECK (max_points BETWEEN 1 AND 1000),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 const count = db.prepare("SELECT COUNT(*) AS total FROM users").get().total;

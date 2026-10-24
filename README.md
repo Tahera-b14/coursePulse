@@ -1,10 +1,10 @@
-# coursePulse · Build 13-fix
+# coursePulse · Build 14
 
-🐛 **Bug Fix Build**
-> **Commit Message:** `fix: prevent over-enrollment race condition with sqlite transaction`
+🚀 **Feature Build #14**
+> **Commit Message:** `feat: assignments schema in sqlite database`
 
 ## Summary
-Wrap enrollment capacity check and insert inside an atomic SQLite transaction and add busy UI lock.
+Add assignments table with course_id, title, description, due date, and max points.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.
