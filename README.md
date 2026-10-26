@@ -1,10 +1,10 @@
-# coursePulse · Build 19-fix
+# coursePulse · Build 20
 
-🐛 **Bug Fix Build**
-> **Commit Message:** `fix: delete temporary uploaded files if submission validation fails`
+🚀 **Feature Build #20**
+> **Commit Message:** `feat: student assignment submission and file attachment ui`
 
 ## Summary
-Ensure orphaned temporary upload files are cleaned up if submission validation or database insertion fails.
+Add submission modal in StudentDashboard with file upload, answer notes, and withdraw option.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.
