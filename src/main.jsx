@@ -780,6 +780,20 @@ function ManageCourseModal({ course: summary, notify, onClose, onChanged }) {
   );
 }
 
+function SubmissionReview({ item, onGrade }) {
+  const [grade, setGrade] = useState(item.grade ?? "");
+  const [feedback, setFeedback] = useState(item.feedback ?? "");
+  return (
+    <form className="submission-card" onSubmit={(event) => { event.preventDefault(); onGrade(item.id, grade, feedback); }}>
+      <div className="submission-heading"><div><strong>{item.student_name}</strong><span>{item.student_email} · {item.assignment_title}</span></div><span className="row-badge">{new Date(item.submitted_at).toLocaleDateString()}</span></div>
+      {item.content && <p className="submission-content">{item.content}</p>}
+      {item.file_name && <a className="submission-file" href={`/api/submissions/${item.id}/file`} download><Icon name="edit" size={16} /><span><strong>{item.file_name}</strong><small>{item.file_size ? `${(item.file_size / (1024 * 1024)).toFixed(2)} MB` : "Homework attachment"} · Download file</small></span><Icon name="arrow" size={15} /></a>}
+      {!item.content && !item.file_name && <p className="submission-content">No submission content.</p>}
+      <div className="submission-grade"><label><span>Grade</span><input type="number" min="0" max={item.max_points} step="0.5" value={grade} onChange={(event) => setGrade(event.target.value)} required /><small>out of {item.max_points}</small></label><label><span>Feedback</span><input value={feedback} onChange={(event) => setFeedback(event.target.value)} maxLength="2000" placeholder="A note for your learner" /></label><button className="button button-primary button-small">{item.grade === null ? "Save grade" : "Update grade"}</button></div>
+    </form>
+  );
+}
+
 function StatCard({ label, value, icon, tint }) {
   return <div className="stat-card"><span className={`stat-icon ${tint}`}><Icon name={icon} size={19} /></span><span className="stat-value">{value}</span><span className="stat-label">{label}</span></div>;
 }

@@ -1,10 +1,10 @@
-# coursePulse · Build 21
+# coursePulse · Build 22
 
-🚀 **Feature Build #21**
-> **Commit Message:** `feat: instructor submissions review api and secure file download`
+🚀 **Feature Build #22**
+> **Commit Message:** `feat: instructor grading interface with score and feedback`
 
 ## Summary
-Implement GET /api/courses/:id/submissions and authenticated GET /api/submissions/:id/file download.
+Add SubmissionReview modal allowing instructors to download attachments, score work, and leave feedback.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.

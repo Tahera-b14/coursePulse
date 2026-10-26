@@ -463,6 +463,23 @@ app.get("/api/submissions/:id/file", requireAuth, (req, res, next) => {
   });
 });
 
+app.patch("/api/submissions/:id/grade", requireAuth, requireRole("instructor", "admin"), (req, res) => {
+  const submission = db.prepare(`
+    SELECT s.*, a.max_points, c.instructor_id
+    FROM submissions s JOIN assignments a ON a.id = s.assignment_id
+    JOIN courses c ON c.id = a.course_id WHERE s.id = ?
+  `).get(Number(req.params.id));
+  if (!submission) return res.status(404).json({ error: "Submission not found." });
+  if (req.user.role !== "admin" && submission.instructor_id !== req.user.id) return res.status(403).json({ error: "You cannot grade this submission." });
+  const grade = Number(req.body?.grade);
+  const feedback = typeof req.body?.feedback === "string" ? req.body.feedback.trim() : "";
+  if (!Number.isFinite(grade) || grade < 0 || grade > submission.max_points || feedback.length > 2000) {
+    return res.status(400).json({ error: `Grade must be between 0 and ${submission.max_points}; feedback must be under 2,000 characters.` });
+  }
+  db.prepare("UPDATE submissions SET grade = ?, feedback = ? WHERE id = ?").run(grade, feedback, submission.id);
+  res.json({ message: "Submission graded." });
+});
+
 app.get("/api/courses/:id/roster", requireAuth, requireRole("instructor", "admin"), (req, res) => {
   const course = readCourse(Number(req.params.id));
   if (!course) return res.status(404).json({ error: "Course not found." });
