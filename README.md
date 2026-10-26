@@ -1,10 +1,10 @@
-# coursePulse · Build 22
+# coursePulse · Build 23
 
-🚀 **Feature Build #22**
-> **Commit Message:** `feat: instructor grading interface with score and feedback`
+🚀 **Feature Build #23**
+> **Commit Message:** `feat: student grades page and gpa progress breakdown`
 
 ## Summary
-Add SubmissionReview modal allowing instructors to download attachments, score work, and leave feedback.
+Add GradesPage calculating GPA / percentage, course progress bars, and graded assignment breakdown.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.

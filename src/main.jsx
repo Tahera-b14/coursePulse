@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import "./styles.css";
 
 const categories = ["All", "Development", "Data & AI", "Design", "Business"];
-const pages = ["home", "courses", "login", "register", "dashboard"];
+const pages = ["home", "courses", "login", "register", "dashboard", "grades"];
 
 const ConfirmContext = createContext(null);
 function useConfirm() {
@@ -289,7 +289,7 @@ function App() {
           {user && <button className={page === "dashboard" ? "nav-link active" : "nav-link"} onClick={() => go("dashboard")}>My workspace</button>}
           
           
-          
+          {user?.role === "student" && <button className={page === "grades" ? "nav-link active" : "nav-link"} onClick={() => go("grades")}>Grades</button>}
           <div className="nav-actions">
             {user ? (
               <>
@@ -322,7 +322,7 @@ function App() {
         
         
         
-        
+        {page === "grades" && user?.role === "student" && <GradesPage notify={notify} go={go} />}
         
         {page === "login" && <AuthPage mode="login" onSubmit={handleAuth} busy={busy} go={go} />}
         {page === "register" && <AuthPage mode="register" onSubmit={handleAuth} busy={busy} go={go} />}
@@ -791,6 +791,42 @@ function SubmissionReview({ item, onGrade }) {
       {!item.content && !item.file_name && <p className="submission-content">No submission content.</p>}
       <div className="submission-grade"><label><span>Grade</span><input type="number" min="0" max={item.max_points} step="0.5" value={grade} onChange={(event) => setGrade(event.target.value)} required /><small>out of {item.max_points}</small></label><label><span>Feedback</span><input value={feedback} onChange={(event) => setFeedback(event.target.value)} maxLength="2000" placeholder="A note for your learner" /></label><button className="button button-primary button-small">{item.grade === null ? "Save grade" : "Update grade"}</button></div>
     </form>
+  );
+}
+
+function GradesPage({ notify, go }) {
+  const [courses, setCourses] = useState(null);
+  useEffect(() => {
+    api("/grades").then((data) => setCourses(data.courses)).catch((error) => notify(error.message));
+  }, [notify]);
+  if (!courses) return <section className="dashboard-page page-width"><div className="loading-card">Gathering your grades…</div></section>;
+  const graded = courses.filter((course) => course.percentage !== null);
+  const overall = graded.length ? Math.round((graded.reduce((sum, course) => sum + course.percentage, 0) / graded.length) * 10) / 10 : null;
+  return (
+    <section className="dashboard-page page-width">
+      <div className="dashboard-welcome"><div><div className="eyebrow">Progress report</div><h1>Your grades,<br /><span>at a glance.</span></h1><p>Percentages include graded work only.</p></div><button className="button button-outline" onClick={() => window.print()}>Print report</button></div>
+      <div className="dashboard-stats">
+        <StatCard label="Courses" value={courses.length} icon="book" tint="stat-lilac" />
+        <StatCard label="Total credits" value={courses.reduce((sum, course) => sum + course.credits, 0)} icon="cap" tint="stat-green" />
+        <StatCard label="Overall average" value={overall === null ? "—" : `${overall}%`} icon="chart" tint="stat-blue" />
+      </div>
+      {courses.length === 0 && <div className="dashboard-panel"><EmptyPanel title="No courses yet." action="Explore courses" onClick={() => go("courses")} /></div>}
+      {courses.map((course) => (
+        <section className="dashboard-panel grades-panel" key={course.id}>
+          <div className="grades-course-heading"><div><span className="eyebrow">{course.code} · {course.credits} credits</span><h2>{course.title}</h2></div><span className={`grade-chip ${course.percentage === null ? "" : course.percentage >= 70 ? "grade-good" : "grade-low"}`}>{course.percentage === null ? "Not graded" : `${course.percentage}%`}</span></div>
+          {course.percentage !== null && <div className="grades-progress" aria-label={`${course.percentage}% graded average`}><span style={{ width: `${Math.min(100, Math.max(0, course.percentage))}%` }} /></div>}
+          {course.assignments.length ? (
+            <div className="grade-assignment-list">{course.assignments.map((item) => {
+              const status = item.grade !== null ? "Graded" : item.submitted_at ? "Submitted" : new Date(item.due_date) < new Date() ? "Missing" : "Pending";
+              return <article className="grade-assignment" key={item.id}>
+                <div className="grade-assignment-heading"><div><strong>{item.title}</strong><small>Due {formatDate(item.due_date)}</small></div><span className={`status-pill ${status === "Graded" || status === "Submitted" ? "status-done" : ""}`}>{status}</span></div>
+                <div className="grade-assignment-details"><div><small>Score</small><strong>{item.grade !== null ? `${item.grade} / ${item.max_points}` : `— / ${item.max_points}`}</strong></div><div className="grade-feedback"><small>Instructor feedback</small><p>{item.feedback || "No feedback yet."}</p></div></div>
+              </article>;
+            })}</div>
+          ) : <p className="muted-note">No assignments have been posted yet.</p>}
+        </section>
+      ))}
+    </section>
   );
 }
 

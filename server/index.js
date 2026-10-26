@@ -480,6 +480,37 @@ app.patch("/api/submissions/:id/grade", requireAuth, requireRole("instructor", "
   res.json({ message: "Submission graded." });
 });
 
+app.get("/api/grades", requireAuth, requireRole("student"), (req, res) => {
+  const rows = db.prepare(`
+    SELECT c.id AS course_id, c.code, c.title AS course_title, c.credits,
+      a.id AS assignment_id, a.title AS assignment_title, a.due_date, a.max_points,
+      s.grade, s.feedback, s.submitted_at
+    FROM enrollments e JOIN courses c ON c.id = e.course_id
+    LEFT JOIN assignments a ON a.course_id = c.id
+    LEFT JOIN submissions s ON s.assignment_id = a.id AND s.student_id = e.student_id
+    WHERE e.student_id = ? ORDER BY c.title, a.due_date
+  `).all(req.user.id);
+  const byCourse = new Map();
+  for (const row of rows) {
+    if (!byCourse.has(row.course_id)) {
+      byCourse.set(row.course_id, { id: row.course_id, code: row.code, title: row.course_title, credits: row.credits, assignments: [] });
+    }
+    if (row.assignment_id) {
+      byCourse.get(row.course_id).assignments.push({
+        id: row.assignment_id, title: row.assignment_title, due_date: row.due_date, max_points: row.max_points,
+        grade: row.grade, feedback: row.feedback, submitted_at: row.submitted_at,
+      });
+    }
+  }
+  const courses = [...byCourse.values()].map((course) => {
+    const graded = course.assignments.filter((item) => item.grade !== null);
+    const possible = graded.reduce((sum, item) => sum + item.max_points, 0);
+    const earned = graded.reduce((sum, item) => sum + item.grade, 0);
+    return { ...course, percentage: possible ? Math.round((earned / possible) * 1000) / 10 : null };
+  });
+  res.json({ courses });
+});
+
 app.get("/api/courses/:id/roster", requireAuth, requireRole("instructor", "admin"), (req, res) => {
   const course = readCourse(Number(req.params.id));
   if (!course) return res.status(404).json({ error: "Course not found." });
