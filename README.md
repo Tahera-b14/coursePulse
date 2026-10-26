@@ -1,10 +1,10 @@
-# coursePulse · Build 20
+# coursePulse · Build 21
 
-🚀 **Feature Build #20**
-> **Commit Message:** `feat: student assignment submission and file attachment ui`
+🚀 **Feature Build #21**
+> **Commit Message:** `feat: instructor submissions review api and secure file download`
 
 ## Summary
-Add submission modal in StudentDashboard with file upload, answer notes, and withdraw option.
+Implement GET /api/courses/:id/submissions and authenticated GET /api/submissions/:id/file download.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.

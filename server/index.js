@@ -429,6 +429,40 @@ app.delete("/api/assignments/:id/submissions", requireAuth, requireRole("student
   res.json({ message: "Your submission has been withdrawn." });
 });
 
+app.get("/api/courses/:id/submissions", requireAuth, requireRole("instructor", "admin"), (req, res) => {
+  const course = readCourse(Number(req.params.id));
+  if (!course) return res.status(404).json({ error: "Course not found." });
+  if (!canManageCourse(req, course)) return res.status(403).json({ error: "You can only review work for courses you teach." });
+  const submissions = db.prepare(`
+    SELECT s.id, s.assignment_id, s.content, s.file_name, s.file_size, s.grade, s.feedback, s.submitted_at, u.name AS student_name, u.email AS student_email,
+      a.title AS assignment_title, a.max_points
+    FROM submissions s JOIN users u ON u.id = s.student_id
+    JOIN assignments a ON a.id = s.assignment_id
+    WHERE a.course_id = ? ORDER BY s.submitted_at DESC
+  `).all(course.id);
+  res.json({ submissions });
+});
+
+app.get("/api/submissions/:id/file", requireAuth, (req, res, next) => {
+  const submission = db.prepare(`
+    SELECT s.file_key, s.file_name, c.instructor_id
+    FROM submissions s JOIN assignments a ON a.id = s.assignment_id
+    JOIN courses c ON c.id = a.course_id WHERE s.id = ?
+  `).get(Number(req.params.id));
+  if (!submission?.file_key) return res.status(404).json({ error: "Homework file not found." });
+  const isOwner = db.prepare("SELECT 1 FROM submissions WHERE id = ? AND student_id = ?")
+    .get(Number(req.params.id), req.user.id);
+  if (!isOwner && req.user.id !== submission.instructor_id && req.user.role !== "admin") {
+    return res.status(403).json({ error: "You do not have permission to access this homework file." });
+  }
+  const filePath = path.join(uploadsDirectory, submission.file_key);
+  if (!fs.existsSync(filePath)) return res.status(404).json({ error: "The stored homework file is no longer available." });
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.download(filePath, path.basename((submission.file_name || "homework-file").replace(/\\/g, "/")), (error) => {
+    if (error && !res.headersSent) next(error);
+  });
+});
+
 app.get("/api/courses/:id/roster", requireAuth, requireRole("instructor", "admin"), (req, res) => {
   const course = readCourse(Number(req.params.id));
   if (!course) return res.status(404).json({ error: "Course not found." });
