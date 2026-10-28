@@ -547,8 +547,19 @@ app.post("/api/courses/:id/announcements", requireAuth, requireRole("instructor"
     return res.status(400).json({ error: "Announcements need a title (up to 120 characters) and a message (up to 4,000)." });
   }
   
-  const result = db.prepare("INSERT INTO announcements (course_id, author_id, title, body) VALUES (?, ?, ?, ?)")
-    .run(course.id, req.user.id, title.trim(), body.trim());
+  const postAnnouncement = db.transaction(() => {
+    const result = db.prepare("INSERT INTO announcements (course_id, author_id, title, body) VALUES (?, ?, ?, ?)")
+      .run(course.id, req.user.id, title.trim(), body.trim());
+    const recipients = db.prepare("SELECT student_id FROM enrollments WHERE course_id = ? AND status = 'active'").all(course.id);
+    const insertNotification = db.prepare(`
+      INSERT INTO notifications (user_id, course_id, title, message) VALUES (?, ?, ?, ?)
+    `);
+    for (const recipient of recipients) {
+      insertNotification.run(recipient.student_id, course.id, title.trim(), `${course.code} · ${body.trim()}`);
+    }
+    return result;
+  });
+  const result = postAnnouncement();
   
   res.status(201).json({ announcement: db.prepare("SELECT * FROM announcements WHERE id = ?").get(result.lastInsertRowid) });
 });
@@ -561,6 +572,28 @@ app.delete("/api/announcements/:id", requireAuth, requireRole("instructor", "adm
   if (req.user.role !== "admin" && announcement.instructor_id !== req.user.id) return res.status(403).json({ error: "You cannot remove this announcement." });
   db.prepare("DELETE FROM announcements WHERE id = ?").run(announcement.id);
   res.status(204).end();
+});
+
+app.get("/api/notifications", requireAuth, (req, res) => {
+  const notifications = db.prepare(`
+    SELECT id, course_id, title, message, created_at, read_at
+    FROM notifications WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT 30
+  `).all(req.user.id);
+  const unreadCount = db.prepare("SELECT COUNT(*) AS total FROM notifications WHERE user_id = ? AND read_at IS NULL")
+    .get(req.user.id).total;
+  res.json({ notifications, unread_count: unreadCount });
+});
+
+app.patch("/api/notifications/read-all", requireAuth, (req, res) => {
+  db.prepare("UPDATE notifications SET read_at = CURRENT_TIMESTAMP WHERE user_id = ? AND read_at IS NULL").run(req.user.id);
+  res.json({ message: "Notifications marked as read." });
+});
+
+app.patch("/api/notifications/:id/read", requireAuth, (req, res) => {
+  const result = db.prepare("UPDATE notifications SET read_at = CURRENT_TIMESTAMP WHERE id = ? AND user_id = ?")
+    .run(Number(req.params.id), req.user.id);
+  if (!result.changes) return res.status(404).json({ error: "Notification not found." });
+  res.json({ message: "Notification marked as read." });
 });
 
 app.get("/api/courses/:id/roster", requireAuth, requireRole("instructor", "admin"), (req, res) => {

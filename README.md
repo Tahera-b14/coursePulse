@@ -1,10 +1,10 @@
-# coursePulse · Build 24
+# coursePulse · Build 25
 
-🚀 **Feature Build #24**
-> **Commit Message:** `feat: course announcements schema, api, and feed ui`
+🚀 **Feature Build #25**
+> **Commit Message:** `feat: in-app notifications schema and automated event triggers`
 
 ## Summary
-Add announcements table, instructor publishing endpoint, and announcement feed on dashboard.
+Add notifications table with automated triggers when announcements are posted or learners are unenrolled.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.

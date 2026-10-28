@@ -78,7 +78,18 @@ db.exec(`
     body TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
   );
+
+  CREATE TABLE IF NOT EXISTS notifications (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    course_id INTEGER REFERENCES courses(id) ON DELETE SET NULL,
+    title TEXT NOT NULL,
+    message TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    read_at TEXT
+  );
 `);
+db.exec("CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_id, created_at DESC, id DESC)");
 
 const submissionColumns = db.prepare("PRAGMA table_info(submissions)").all().map((column) => column.name);
 if (!submissionColumns.includes("file_key")) db.exec("ALTER TABLE submissions ADD COLUMN file_key TEXT");
