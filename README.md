@@ -1,10 +1,10 @@
-# coursePulse · Build 23
+# coursePulse · Build 24
 
-🚀 **Feature Build #23**
-> **Commit Message:** `feat: student grades page and gpa progress breakdown`
+🚀 **Feature Build #24**
+> **Commit Message:** `feat: course announcements schema, api, and feed ui`
 
 ## Summary
-Add GradesPage calculating GPA / percentage, course progress bars, and graded assignment breakdown.
+Add announcements table, instructor publishing endpoint, and announcement feed on dashboard.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.

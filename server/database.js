@@ -69,6 +69,15 @@ db.exec(`
     submitted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (assignment_id, student_id)
   );
+
+  CREATE TABLE IF NOT EXISTS announcements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+    author_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL,
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 
 const submissionColumns = db.prepare("PRAGMA table_info(submissions)").all().map((column) => column.name);

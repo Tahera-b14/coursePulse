@@ -511,6 +511,58 @@ app.get("/api/grades", requireAuth, requireRole("student"), (req, res) => {
   res.json({ courses });
 });
 
+app.get("/api/announcements", requireAuth, (req, res) => {
+  const base = `
+    SELECT n.id, n.title, n.body, n.created_at, n.course_id, c.code, c.title AS course_title, u.name AS author_name
+    FROM announcements n JOIN courses c ON c.id = n.course_id JOIN users u ON u.id = n.author_id
+  `;
+  let announcements;
+  if (req.user.role === "student") {
+    announcements = db.prepare(`${base} JOIN enrollments e ON e.course_id = c.id AND e.student_id = ? ORDER BY n.created_at DESC, n.id DESC LIMIT 20`).all(req.user.id);
+  } else if (req.user.role === "instructor") {
+    announcements = db.prepare(`${base} WHERE c.instructor_id = ? ORDER BY n.created_at DESC, n.id DESC LIMIT 20`).all(req.user.id);
+  } else {
+    announcements = db.prepare(`${base} ORDER BY n.created_at DESC, n.id DESC LIMIT 20`).all();
+  }
+  res.json({ announcements });
+});
+
+app.get("/api/courses/:id/announcements", requireAuth, (req, res) => {
+  const course = readCourse(Number(req.params.id));
+  if (!course) return res.status(404).json({ error: "Course not found." });
+  const announcements = db.prepare(`
+    SELECT n.id, n.title, n.body, n.created_at, u.name AS author_name
+    FROM announcements n JOIN users u ON u.id = n.author_id
+    WHERE n.course_id = ? ORDER BY n.created_at DESC, n.id DESC
+  `).all(course.id);
+  res.json({ announcements });
+});
+
+app.post("/api/courses/:id/announcements", requireAuth, requireRole("instructor", "admin"), (req, res) => {
+  const course = readCourse(Number(req.params.id));
+  if (!course) return res.status(404).json({ error: "Course not found." });
+  if (!canManageCourse(req, course)) return res.status(403).json({ error: "You can only post to courses you teach." });
+  const { title, body } = req.body || {};
+  if (typeof title !== "string" || !title.trim() || title.length > 120 || typeof body !== "string" || !body.trim() || body.length > 4000) {
+    return res.status(400).json({ error: "Announcements need a title (up to 120 characters) and a message (up to 4,000)." });
+  }
+  
+  const result = db.prepare("INSERT INTO announcements (course_id, author_id, title, body) VALUES (?, ?, ?, ?)")
+    .run(course.id, req.user.id, title.trim(), body.trim());
+  
+  res.status(201).json({ announcement: db.prepare("SELECT * FROM announcements WHERE id = ?").get(result.lastInsertRowid) });
+});
+
+app.delete("/api/announcements/:id", requireAuth, requireRole("instructor", "admin"), (req, res) => {
+  const announcement = db.prepare(`
+    SELECT n.id, c.instructor_id FROM announcements n JOIN courses c ON c.id = n.course_id WHERE n.id = ?
+  `).get(Number(req.params.id));
+  if (!announcement) return res.status(404).json({ error: "Announcement not found." });
+  if (req.user.role !== "admin" && announcement.instructor_id !== req.user.id) return res.status(403).json({ error: "You cannot remove this announcement." });
+  db.prepare("DELETE FROM announcements WHERE id = ?").run(announcement.id);
+  res.status(204).end();
+});
+
 app.get("/api/courses/:id/roster", requireAuth, requireRole("instructor", "admin"), (req, res) => {
   const course = readCourse(Number(req.params.id));
   if (!course) return res.status(404).json({ error: "Course not found." });

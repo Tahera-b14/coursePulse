@@ -524,7 +524,7 @@ function CourseDetailModal({ course: initialCourse, user, enrolled, busy, onClos
           <span><small>Seats left</small>{seatsLeft} of {course.capacity}</span>
         </div>
         <div className="progress-track detail-capacity"><span style={{ width: `${Math.min(100, (course.enrolled_count / course.capacity) * 100)}%` }} /></div>
-        
+        {announcements.length > 0 && <div className="detail-announcements"><strong>Latest announcements</strong>{announcements.slice(0, 3).map((item) => <div className="announcement-item" key={item.id}><strong>{item.title}</strong><p>{item.body}</p><small>{item.author_name} · {formatDate(item.created_at)}</small></div>)}</div>}
         <div className="detail-actions">
           {!user && <button className="button button-primary" onClick={() => { onClose(); go("login"); }}>Sign in to enroll <Icon name="arrow" size={16} /></button>}
           {user?.role === "student" && !enrolled && <button className="button button-primary" disabled={busy || full} onClick={async () => { await onEnroll(course.id); onClose(); }}>{full ? "Course is full" : "Enroll in course"} <Icon name="arrow" size={16} /></button>}
@@ -826,6 +826,20 @@ function GradesPage({ notify, go }) {
           ) : <p className="muted-note">No assignments have been posted yet.</p>}
         </section>
       ))}
+    </section>
+  );
+}
+
+function AnnouncementFeed() {
+  const [items, setItems] = useState(null);
+  useEffect(() => {
+    api("/announcements").then((data) => setItems(data.announcements)).catch(() => setItems([]));
+  }, []);
+  if (!items) return null;
+  return (
+    <section className="dashboard-panel announcement-panel">
+      <div className="panel-heading"><div><span className="eyebrow">From your courses</span><h2>Announcements</h2></div><Icon name="bell" size={18} /></div>
+      {items.length ? <div className="announcement-list">{items.slice(0, 6).map((item) => <div className="announcement-item" key={item.id}><div className="announcement-top"><strong>{item.title}</strong><span className="row-badge">{item.code}</span></div><p>{item.body}</p><small>{item.author_name} · {formatDate(item.created_at)}</small></div>)}</div> : <EmptyPanel title="All quiet for now." description="Course announcements will show up here." />}
     </section>
   );
 }
