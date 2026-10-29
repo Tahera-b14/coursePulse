@@ -89,45 +89,30 @@ Unlike heavy, bloated legacy platforms, coursePulse is engineered for **clarity,
 
 coursePulse follows a decoupled client-server architecture with an integrated static production runtime.
 
-```mermaid
-flowchart TD
-    subgraph Browser ["Client (Browser)"]
-        UI["React 19 SPA (src/main.jsx)"]
-        CSS["Design System (src/styles.css)"]
-        HashRouter["Client Hash Router (#page)"]
-        State["React Context & State Hooks"]
-        CookieJar["HttpOnly Session Cookie"]
-    end
-
-    subgraph DevProxy ["Vite Dev Server (:5173)"]
-        ViteDev["Vite HMR & Proxy Engine"]
-    end
-
-    subgraph Server ["Express 5 Application (:5000)"]
-        API["Express Router (/api/*)"]
-        AuthMid["requireAuth & requireRole Middleware"]
-        UploadMid["Multer File Upload Middleware"]
-        StaticServe["Express Static (dist/) [Production]"]
-    end
-
-    subgraph Persistence ["Data & Storage Layer"]
-        DB[("SQLite Database (better-sqlite3 WAL)")]
-        Disk["Homework Uploads (/data/uploads/*)"]
-    end
-
-    UI --> HashRouter
-    UI --> CSS
-    UI -. "API Requests (/api/...)" .-> ViteDev
-    ViteDev -. "Proxy to :5000" .-> API
-    UI == "Direct Fetch (Prod)" ==> API
-    CookieJar <== "Session Handshake" ==> AuthMid
-
-    API --> AuthMid
-    AuthMid --> API
-    API --> UploadMid
-    UploadMid --> Disk
-    API <--> DB
-    StaticServe --> UI
+```text
++-----------------------------------------------------------------------------------+
+|                              CLIENT (WEB BROWSER)                                 |
+|   React 19 SPA (src/main.jsx)  •  Vanilla CSS Design System (src/styles.css)      |
+|   Hash Router (#page)  •  Context Providers  •  HttpOnly Session Cookie           |
++-----------------------------------------------------------------------------------+
+                                  ▲                   ▲
+                  Dev API Proxy   │                   │ Direct API Fetch
+             (http://localhost:5173)                  │ (Production)
+                                  ▼                   ▼
++-----------------------------------------------------------------------------------+
+|                             EXPRESS 5 API SERVER                                  |
+|   Port 5000  •  JWT Cookie Auth  •  Bcrypt Password Hash  •  Multer Uploads       |
+|   REST Endpoints: /api/auth, /api/courses, /api/assignments, /api/admin, etc.     |
++-----------------------------------------------------------------------------------+
+                                  │                   │
+                     SQL Queries  │                   │ File Storage
+             (Transactions / WAL) │                   │
+                                  ▼                   ▼
++------------------------------------------+   +------------------------------------+
+|            SQLITE DATABASE               |   |        ATTACHMENTS STORAGE         |
+|         data/courseflow.sqlite           |   |           data/uploads/            |
+|       (better-sqlite3 WAL Mode)          |   |      (UUID-Named Homework)         |
++------------------------------------------+   +------------------------------------+
 ```
 
 ---
@@ -136,114 +121,59 @@ flowchart TD
 
 ### 1. Student Learning Lifecycle
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor S as Student
-    participant C as Client (React UI)
-    participant API as Express API
-    participant DB as SQLite DB
-    participant FS as File System
-
-    S->>C: Browse Course Catalog (#courses)
-    C->>API: GET /api/courses?search=&category=
-    API->>DB: Query courses with seat counts
-    DB-->>API: Return course list
-    API-->>C: Render course cards
-
-    S->>C: Click "Enroll"
-    C->>API: POST /api/courses/:id/enroll
-    API->>DB: Atomic capacity check & insert into enrollments
-    DB-->>API: Success
-    API-->>C: 201 Enrolled
-
-    S->>C: Open Assignment & Upload Homework
-    C->>API: POST /api/assignments/:id/submissions (multipart/form-data)
-    API->>FS: Save file with UUID key in /data/uploads/
-    API->>DB: Upsert into submissions
-    DB-->>API: Saved
-    API-->>C: 201 Submitted
-
-    Note over S,C: Instructor reviews and grades submission
-
-    API->>DB: UPDATE submissions (grade, feedback)
-    S->>C: Check Grades (#grades)
-    C->>API: GET /api/grades
-    API->>DB: Aggregate scores, GPA, weighted progress
-    DB-->>API: Course grades data
-    C-->>S: Display grade report & instructor feedback
+```text
+[ 1. Explore Catalog ] ──▶ [ 2. Wishlist / Enroll ] ──▶ [ 3. Student Dashboard ]
+                                                                │
+                                                                ▼
+[ 6. GPA & Grade Report ] ◀── [ 5. Graded by Teacher ] ◀── [ 4. Submit Homework ]
 ```
+
+| Step | Action | Endpoint / Mechanism | Description |
+|:---|:---|:---|:---|
+| **1. Browse Catalog** | Search & Filter | `GET /api/courses?search=&category=` | Real-time query across codes, titles, and descriptions with category filtering (`Development`, `Data & AI`, etc.). |
+| **2. Save or Enroll** | One-Click Enrollment | `POST /api/courses/:id/enroll` | Executes atomic seat capacity check (`enrolled < capacity`) and registers student into `enrollments`. |
+| **3. Track Deadlines** | Student Dashboard | `GET /api/dashboard` | Displays active course cards, upcoming assignment due dates, and pending submission statuses. |
+| **4. Submit Homework** | Text & Attachment | `POST /api/assignments/:id/submissions` | Supports text response (up to 10k chars) and file attachment (up to 10MB; stored with UUID filename). |
+| **5. Teacher Review** | Graded by Instructor | *Instructor Action* | Teacher reviews content and attachments, assigning points and written feedback notes. |
+| **6. Review Grades** | Grade Book & GPA | `GET /api/grades` | Displays earned vs. possible point totals, live weighted percentages, GPA, and instructor feedback. |
+
+---
 
 ### 2. Instructor Management & Grading Lifecycle
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor I as Instructor
-    participant C as Client (React UI)
-    participant API as Express API
-    participant DB as SQLite DB
-
-    I->>C: Create New Course Modal
-    C->>API: POST /api/courses
-    API->>DB: INSERT INTO courses
-    DB-->>API: Course ID
-    API-->>C: 201 Course Created
-
-    I->>C: Post Announcement
-    C->>API: POST /api/courses/:id/announcements
-    API->>DB: Transaction: Save announcement & insert notifications for all enrolled students
-    DB-->>API: Committed
-    API-->>C: 201 Announcement published & students notified
-
-    I->>C: Open Submissions Review Modal
-    C->>API: GET /api/courses/:id/submissions
-    API->>DB: Query submissions with student & assignment info
-    DB-->>API: Submissions list
-    C-->>I: Display submitted work & attachments
-
-    I->>C: Submit Grade & Feedback
-    C->>API: PATCH /api/submissions/:id/grade
-    API->>DB: UPDATE submissions SET grade=?, feedback=?
-    DB-->>API: Updated
-    API-->>C: 200 Graded
+```text
+[ 1. Author Course ] ──▶ [ 2. Schedule Assignments ] ──▶ [ 3. Post Announcement ]
+                                                                   │
+                                                                   ▼
+[ 6. Complete Grading ] ◀── [ 5. Score & Feedback ] ◀── [ 4. Review Submissions ]
 ```
+
+| Step | Action | Endpoint / Mechanism | Description |
+|:---|:---|:---|:---|
+| **1. Create Course** | Author Course Modal | `POST /api/courses` | Define course code, title, credits (1–12), category, level, capacity, and syllabus description. |
+| **2. Set Assignments** | Assignment Authoring | `POST /api/courses/:id/assignments` | Schedule assignments with deadlines and maximum point scales (1–1,000 points). |
+| **3. Broadcast Updates** | Post Announcement | `POST /api/courses/:id/announcements` | Saves course announcement and dispatches instant in-app notifications to all enrolled students. |
+| **4. Manage Roster** | Class Roster Modal | `GET /api/courses/:id/roster` | Review enrolled learners; supports unregistering individual students if necessary. |
+| **5. Review Homework** | Submission Review | `GET /api/courses/:id/submissions` | Inspect student text submissions and securely download attachments with `nosniff` headers. |
+| **6. Grade & Feedback** | Submit Score | `PATCH /api/submissions/:id/grade` | Record numerical score and construct constructive written feedback for the student. |
+
+---
 
 ### 3. Administrator Governance Lifecycle
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor A as Admin
-    participant C as Client (React UI)
-    participant API as Express API
-    participant DB as SQLite DB
-    participant FS as File System
-
-    A->>C: Access Admin Dashboard (#dashboard)
-    C->>API: GET /api/dashboard
-    API->>DB: Run platform aggregate metrics (Users, Courses, Enrollments)
-    DB-->>API: Telemetry payload
-    C-->>A: Render stats cards, course directory & user roster
-
-    A->>C: Provision New Account (e.g. Instructor)
-    C->>API: POST /api/admin/users
-    API->>DB: INSERT INTO users (hash password with bcrypt)
-    DB-->>API: User ID
-    API-->>C: 201 User Created
-
-    A->>C: Attempt User Deletion
-    C->>API: DELETE /api/admin/users/:id
-    API->>DB: Check if user teaches active courses
-    alt User has active courses
-        API-->>C: 409 Conflict ("Reassign or delete instructor's courses first")
-    else Safe to delete
-        API->>DB: Query associated homework file_keys
-        API->>DB: DELETE FROM users (Cascades through enrollments/submissions)
-        API->>FS: Remove orphaned submission files from /data/uploads/
-        API-->>C: 204 No Content
-    end
+```text
+[ 1. Monitor Telemetry ] ──▶ [ 2. Provision Users ] ──▶ [ 3. Role Governance ]
+                                                                   │
+                                                                   ▼
+                                                      [ 4. Safe Account Purge ]
 ```
+
+| Step | Action | Endpoint / Mechanism | Description |
+|:---|:---|:---|:---|
+| **1. Platform Audit** | Executive Analytics | `GET /api/dashboard` | Review high-level platform telemetry: student headcount, active teachers, courses, and enrollments. |
+| **2. Provision Users** | Account Onboarding | `POST /api/admin/users` | Onboard students, instructors, or admins directly with instant `bcryptjs` password hashing. |
+| **3. Adjust Roles** | Role Management | `PATCH /api/admin/users/:id` | Elevate or reassign user roles; safeguarded to prevent demoting instructors who own active courses. |
+| **4. Account Deletion** | Safe Account Removal | `DELETE /api/admin/users/:id` | Blocks self-deletion and instructors with active courses; cascades deletion and removes homework files. |
 
 ---
 
@@ -302,111 +232,53 @@ coursePulse/
 
 The database schema is designed with foreign key constraints, check constraints, and cascading rules to maintain referential integrity.
 
-```mermaid
-erDiagram
-    USERS ||--o{ COURSES : "teaches (as instructor)"
-    USERS ||--o{ ENROLLMENTS : "registers (as student)"
-    USERS ||--o{ SUBMISSIONS : "submits (as student)"
-    USERS ||--o{ ANNOUNCEMENTS : "posts (as author)"
-    USERS ||--o{ NOTIFICATIONS : "receives"
-    USERS ||--o{ SAVED_COURSES : "bookmarks"
-    USERS ||--o{ PROFILE_COMMENTS : "receives / authors"
-
-    COURSES ||--o{ ENROLLMENTS : "has enrolled"
-    COURSES ||--o{ ASSIGNMENTS : "contains"
-    COURSES ||--o{ ANNOUNCEMENTS : "broadcasts"
-    COURSES ||--o{ SAVED_COURSES : "saved in"
-
-    ASSIGNMENTS ||--o{ SUBMISSIONS : "receives"
-
-    USERS {
-        INTEGER id PK
-        TEXT name
-        TEXT email UK
-        TEXT password_hash
-        TEXT role "student | instructor | admin"
-        TEXT bio
-        TEXT phone
-        TEXT created_at
-    }
-
-    COURSES {
-        INTEGER id PK
-        TEXT code UK
-        TEXT title
-        TEXT description
-        TEXT category
-        TEXT level
-        INTEGER credits "CHECK(1-12)"
-        INTEGER capacity "CHECK(1-500)"
-        INTEGER instructor_id FK
-        TEXT created_at
-    }
-
-    ENROLLMENTS {
-        INTEGER id PK
-        INTEGER student_id FK
-        INTEGER course_id FK
-        TEXT status "active | completed"
-        TEXT enrolled_at
-    }
-
-    ASSIGNMENTS {
-        INTEGER id PK
-        INTEGER course_id FK
-        TEXT title
-        TEXT description
-        TEXT due_date
-        INTEGER max_points "CHECK(1-1000)"
-        TEXT created_at
-    }
-
-    SUBMISSIONS {
-        INTEGER id PK
-        INTEGER assignment_id FK
-        INTEGER student_id FK
-        TEXT content
-        TEXT file_key
-        TEXT file_name
-        INTEGER file_size
-        REAL grade
-        TEXT feedback
-        TEXT submitted_at
-    }
-
-    ANNOUNCEMENTS {
-        INTEGER id PK
-        INTEGER course_id FK
-        INTEGER author_id FK
-        TEXT title
-        TEXT body
-        TEXT created_at
-    }
-
-    NOTIFICATIONS {
-        INTEGER id PK
-        INTEGER user_id FK
-        INTEGER course_id FK
-        TEXT title
-        TEXT message
-        TEXT created_at
-        TEXT read_at
-    }
-
-    SAVED_COURSES {
-        INTEGER user_id PK, FK
-        INTEGER course_id PK, FK
-        TEXT saved_at
-    }
-
-    PROFILE_COMMENTS {
-        INTEGER id PK
-        INTEGER profile_id FK
-        INTEGER author_id FK
-        TEXT body
-        TEXT created_at
-    }
+```text
++-----------------------+              +-----------------------+
+|         USERS         | 1          * |        COURSES        |
+|-----------------------|--------------|-----------------------|
+| id (PK)               |              | id (PK)               |
+| name, email, role     |              | code, title, credits  |
+| password_hash         |              | capacity, level       |
+| bio, phone            |              | instructor_id (FK)    |
++-----------------------+              +-----------------------+
+     │ 1            │ 1                    │ 1             │ 1
+     │              │                      │               │
+     │ *            │ *                    │ *             │ *
++-----------------------+              +-----------------------+
+|      ENROLLMENTS      |              |      ASSIGNMENTS      |
+|-----------------------|              |-----------------------|
+| id (PK)               |              | id (PK)               |
+| student_id (FK)       |              | course_id (FK)        |
+| course_id (FK)        |              | title, description    |
+| status, enrolled_at   |              | due_date, max_points  |
++-----------------------+              +-----------------------+
+                                                   │ 1
+                                                   │
+                                                   │ *
+                                       +-----------------------+
+                                       |      SUBMISSIONS      |
+                                       |-----------------------|
+                                       | id (PK)               |
+                                       | assignment_id (FK)    |
+                                       | student_id (FK)       |
+                                       | content, file_key     |
+                                       | grade, feedback       |
+                                       +-----------------------+
 ```
+
+### Table Definitions & Constraints
+
+| Table | Primary Key | Foreign Keys | Key Columns & Constraints |
+|:---|:---|:---|:---|
+| `users` | `id` (Auto) | — | `name`, `email` (UNIQUE, NOCASE), `password_hash`, `role` (`student`, `instructor`, `admin`), `bio`, `phone`, `created_at` |
+| `courses` | `id` (Auto) | `instructor_id` $\rightarrow$ `users(id)` | `code` (UNIQUE, NOCASE), `title`, `credits` (1–12), `capacity` (1–500), `category`, `level`, `created_at` |
+| `enrollments` | `id` (Auto) | `student_id` $\rightarrow$ `users(id)`, `course_id` $\rightarrow$ `courses(id)` | `status` (`active`, `completed`), `enrolled_at`, UNIQUE(`student_id`, `course_id`) |
+| `assignments` | `id` (Auto) | `course_id` $\rightarrow$ `courses(id)` | `title`, `description`, `due_date`, `max_points` (1–1,000), `created_at` |
+| `submissions` | `id` (Auto) | `assignment_id` $\rightarrow$ `assignments(id)`, `student_id` $\rightarrow$ `users(id)` | `content`, `file_key`, `file_name`, `file_size`, `grade`, `feedback`, `submitted_at`, UNIQUE(`assignment_id`, `student_id`) |
+| `announcements` | `id` (Auto) | `course_id` $\rightarrow$ `courses(id)`, `author_id` $\rightarrow$ `users(id)` | `title`, `body`, `created_at` |
+| `notifications` | `id` (Auto) | `user_id` $\rightarrow$ `users(id)`, `course_id` $\rightarrow$ `courses(id)` | `title`, `message`, `created_at`, `read_at` (Indexed by `user_id`, `created_at DESC`) |
+| `saved_courses` | Composite (`user_id`, `course_id`) | `user_id` $\rightarrow$ `users(id)`, `course_id` $\rightarrow$ `courses(id)` | `saved_at` (User wishlist bookmarks) |
+| `profile_comments` | `id` (Auto) | `profile_id` $\rightarrow$ `users(id)`, `author_id` $\rightarrow$ `users(id)` | `body` (1–1,000 chars), `created_at` |
 
 ---
 
