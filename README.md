@@ -1,10 +1,10 @@
-# coursePulse · Build 29
+# coursePulse · Build 30
 
-🚀 **Feature Build #29**
-> **Commit Message:** `feat: profile comments and moderation system`
+🚀 **Feature Build #30**
+> **Commit Message:** `feat: admin dashboard, platform analytics, user provisioning, and final polish`
 
 ## Summary
-Add profile_comments table, comment feed on user profiles, and comment moderation for authors and owners.
+Add AdminDashboard with analytics, user account provisioning, role management, roster controls, and production build readiness.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.

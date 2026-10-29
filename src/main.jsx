@@ -3,18 +3,51 @@ import { createRoot } from "react-dom/client";
 import "./styles.css";
 
 const categories = ["All", "Development", "Data & AI", "Design", "Business"];
-const pages = ["home", "courses", "saved-courses", "login", "register", "dashboard", "people", "profile", "grades"];
-
+const pages = ["home", "courses", "saved-courses", "login", "register", "dashboard", "people", "profile", "grades", "universities", "credits"];
 const ConfirmContext = createContext(null);
+
 function useConfirm() {
   return useContext(ConfirmContext);
 }
 
 function ConfirmProvider({ children }) {
-  const confirm = useCallback((message, title = "Are you sure?") => {
-    return Promise.resolve(window.confirm(`${title}\n\n${message}`));
-  }, []);
-  return <ConfirmContext.Provider value={confirm}>{children}</ConfirmContext.Provider>;
+  const [dialog, setDialog] = useState(null);
+  const confirm = useCallback((message, title = "Are you sure?") => new Promise((resolve) => {
+    setDialog({ message, title, resolve });
+  }), []);
+
+  function close(confirmed) {
+    dialog?.resolve(confirmed);
+    setDialog(null);
+  }
+
+  useEffect(() => {
+    if (!dialog) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") close(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [dialog]);
+
+  return (
+    <ConfirmContext.Provider value={confirm}>
+      {children}
+      {dialog && <div className="modal-backdrop confirm-backdrop" onClick={() => close(false)}>
+        <section className="confirm-card" role="alertdialog" aria-modal="true" aria-labelledby="confirm-title"
+          aria-describedby="confirm-message" onClick={(event) => event.stopPropagation()}>
+          <span className="confirm-icon"><Icon name="bell" size={21} /></span>
+          <h2 id="confirm-title">{dialog.title}</h2>
+          <p id="confirm-message">{dialog.message}</p>
+          <div className="confirm-actions">
+            <button type="button" className="button button-outline" onClick={() => close(false)}>Cancel</button>
+            <button type="button" className="button button-danger" onClick={() => close(true)}>Confirm</button>
+          </div>
+        </section>
+      </div>
+      }
+    </ConfirmContext.Provider>
+  );
 }
 
 function formatDate(value, options = { dateStyle: "medium" }) {
@@ -44,12 +77,7 @@ async function api(url, options = {}) {
   });
   if (response.status === 204) return null;
   const payload = await response.json();
-  if (!response.ok) {
-    if (response.status === 401 && url !== "/auth/me") {
-      window.dispatchEvent(new CustomEvent("courseflow:unauthorized"));
-    }
-    throw new Error(payload.error || "Something went wrong.");
-  }
+  if (!response.ok) throw new Error(payload.error || "Something went wrong.");
   return payload;
 }
 
@@ -79,7 +107,6 @@ function Icon({ name, size = 19 }) {
   };
   return <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]}</svg>;
 }
-
 
 function App() {
   const confirm = useConfirm();
@@ -285,7 +312,7 @@ function App() {
         <nav className={`top-nav ${mobileOpen ? "is-open" : ""}`}>
           <button className={page === "home" ? "nav-link active" : "nav-link"} onClick={() => go("home")}>Home</button>
           <button className={isCatalog ? "nav-link active" : "nav-link"} onClick={() => go("courses")}>Explore courses</button>
-          
+          <button className={page === "universities" ? "nav-link active" : "nav-link"} onClick={() => go("universities")}>Universities</button>
           {user && <button className={page === "dashboard" ? "nav-link active" : "nav-link"} onClick={() => go("dashboard")}>My workspace</button>}
           {user && <button className={page === "saved-courses" ? "nav-link active" : "nav-link"} onClick={() => go("saved-courses")}>Saved courses</button>}
           {user && <button className={page === "people" ? "nav-link active" : "nav-link"} onClick={() => go("people")}>People</button>}
@@ -309,8 +336,8 @@ function App() {
 
       <main>
         {page === "home" && <HomePage go={go} courses={courses} user={user} />}
-        
-        
+        {page === "universities" && <UniversitiesPage go={go} />}
+        {page === "credits" && <CreditsPage go={go} />}
         {page === "courses" && (
           <CoursesPage courses={filteredCourses} allCourses={courses} query={query} setQuery={setQuery}
             category={category} setCategory={setCategory} onEnroll={enroll} busy={busy} user={user} go={go}
@@ -350,6 +377,82 @@ function App() {
       )}
       {notice && <div className="toast" role="status"><span className="toast-check"><Icon name="check" size={15} /></span>{notice}</div>}
     </div>
+  );
+}
+
+function UniversitiesPage({ go }) {
+  return (
+    <section className="universities-page page-width">
+      <div className="university-card">
+        <span className="university-emblem"><Icon name="cap" size={27} /></span>
+        <div className="eyebrow"><span className="eyebrow-dot" /> FOR UNIVERSITIES</div>
+        <h1>Course management,<br /><span>built for campus.</span></h1>
+        <p>We’re shaping a shared space to help universities organize courses, support instructors, and keep students on track.</p>
+        <div className="university-status"><span className="status-indicator" /> Not available in this demo</div>
+        <p className="university-note">University tools are on our roadmap. For now, explore the course experience in this demo.</p>
+        <button className="button button-primary button-large" onClick={() => go("courses")}>Explore courses <Icon name="arrow" size={18} /></button>
+      </div>
+    </section>
+  );
+}
+
+function CreditsPage({ go }) {
+  const [stickersOpen, setStickersOpen] = useState(false);
+  const taheraClicks = useRef([]);
+
+  useEffect(() => {
+    if (!stickersOpen) return undefined;
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") setStickersOpen(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [stickersOpen]);
+
+  function handleTaheraClick() {
+    const now = Date.now();
+    taheraClicks.current = taheraClicks.current.filter((timestamp) => now - timestamp < 1200);
+    taheraClicks.current.push(now);
+    if (taheraClicks.current.length >= 5) {
+      taheraClicks.current = [];
+      setStickersOpen(true);
+    }
+  }
+
+  return (
+    <section className="credits-page page-width">
+      <div className="credits-card">
+        <div className="credits-spark credits-spark-one">✳</div>
+        <div className="credits-spark credits-spark-two">✦</div>
+        <img className="credits-logo" src="/coursepulse-logo.png" alt="coursePulse logo" />
+        <h1>Credit</h1>
+        <div className="credits-people">
+          <article className="credits-person">
+            <span className="credits-initials">TR</span>
+            <h2>Tanvir Rahman Rahi</h2>
+            <p>242-112-011</p>
+          </article>
+          <article className="credits-person">
+            <span className="credits-initials">MT</span>
+            <h2><button type="button" className="sticker-trigger" onClick={handleTaheraClick}>Mst Tahera Begum Tahi</button></h2>
+            <p>242-112-019</p>
+          </article>
+        </div>
+        <button className="button button-primary button-large" onClick={() => go("home")}>Back to coursePulse <Icon name="arrow" size={18} /></button>
+      </div>
+      {stickersOpen && <div className="sticker-backdrop" onClick={() => setStickersOpen(false)}>
+        <section className="sticker-gallery" role="dialog" aria-modal="true" aria-labelledby="sticker-title" onClick={(event) => event.stopPropagation()}>
+          <button type="button" className="sticker-close" onClick={() => setStickersOpen(false)} aria-label="Close stickers">×</button>
+          <h2 id="sticker-title">you found it xD</h2>
+          <div className="sticker-grid">
+            <img src="/stickers/tahera-singing.png" alt="Tahera singing sticker" />
+            <img src="/stickers/portrait-sticker.png" alt="Portrait sticker" />
+            <img src="/stickers/tanvir-standing.png" alt="Tanvir standing sticker" />
+            <img src="/stickers/portrait-sticker-two.png" alt="Portrait sticker" />
+          </div>
+        </section>
+      </div>}
+    </section>
   );
 }
 
@@ -432,6 +535,25 @@ function CoursesPage({ courses, allCourses, query, setQuery, category, setCatego
   );
 }
 
+function SavedCoursesPage({ courses, user, go, onEnroll, busy, onDetails, onToggleSaved, enrolledIds }) {
+  return (
+    <section className="catalog-page page-width">
+      <div className="catalog-intro">
+        <div className="eyebrow">A shortlist for your next step</div>
+        <h1>Saved for<br /><span>when you’re ready.</span></h1>
+        <p>Keep interesting courses close while you decide what to learn next.</p>
+      </div>
+      {courses.length ? (
+        <div className="course-grid saved-course-grid">{courses.map((course) => <CourseCard key={course.id} course={course} onEnroll={onEnroll}
+          busy={busy} user={user} go={go} enrolled={enrolledIds.has(course.id)} onDetails={onDetails} saved
+          onToggleSaved={onToggleSaved} />)}</div>
+      ) : <div className="empty-state"><span className="empty-icon"><Icon name="heart" size={24} /></span>
+        <h3>No saved courses yet</h3><p>Save courses from the catalog to keep your options in one place.</p>
+        <button className="button button-outline" onClick={() => go("courses")}>Explore courses</button></div>}
+    </section>
+  );
+}
+
 function CourseCard({ course, onEnroll, busy, user, go, compact = false, enrolled = false, onDetails, saved = false, onToggleSaved }) {
   const full = course.enrolled_count >= course.capacity;
   let label = "Get started";
@@ -498,43 +620,6 @@ function AuthPage({ mode, onSubmit, busy, go }) {
         </div>
       </div>
     </section>
-  );
-}
-
-function CourseDetailModal({ course: initialCourse, user, enrolled, busy, onClose, onEnroll, onDrop, go }) {
-  const [course, setCourse] = useState(initialCourse);
-  const [announcements, setAnnouncements] = useState([]);
-  useEffect(() => {
-    api(`/courses/${initialCourse.id}`).then((data) => setCourse(data.course)).catch(() => {});
-    if (user && (enrolled || user.role !== "student")) {
-      api(`/courses/${initialCourse.id}/announcements`).then((data) => setAnnouncements(data.announcements)).catch(() => setAnnouncements([]));
-    }
-  }, [initialCourse.id, user, enrolled]);
-  const full = course.enrolled_count >= course.capacity;
-  const seatsLeft = Math.max(0, course.capacity - course.enrolled_count);
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card modal-wide" onClick={(event) => event.stopPropagation()}>
-        <button type="button" className="modal-close" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
-        <span className="eyebrow">{course.code} · {course.category}</span>
-        <h2>{course.title}</h2>
-        <p className="detail-description">{course.description}</p>
-        <div className="detail-facts">
-          <span><small>Instructor</small>{course.instructor_name}</span>
-          <span><small>Level</small>{course.level}</span>
-          <span><small>Credits</small>{course.credits}</span>
-          <span><small>Seats left</small>{seatsLeft} of {course.capacity}</span>
-        </div>
-        <div className="progress-track detail-capacity"><span style={{ width: `${Math.min(100, (course.enrolled_count / course.capacity) * 100)}%` }} /></div>
-        {announcements.length > 0 && <div className="detail-announcements"><strong>Latest announcements</strong>{announcements.slice(0, 3).map((item) => <div className="announcement-item" key={item.id}><strong>{item.title}</strong><p>{item.body}</p><small>{item.author_name} · {formatDate(item.created_at)}</small></div>)}</div>}
-        <div className="detail-actions">
-          {!user && <button className="button button-primary" onClick={() => { onClose(); go("login"); }}>Sign in to enroll <Icon name="arrow" size={16} /></button>}
-          {user?.role === "student" && !enrolled && <button className="button button-primary" disabled={busy || full} onClick={async () => { await onEnroll(course.id); onClose(); }}>{full ? "Course is full" : "Enroll in course"} <Icon name="arrow" size={16} /></button>}
-          {user?.role === "student" && enrolled && <button className="button button-outline danger-button" disabled={busy} onClick={async () => { await onDrop(course.id); onClose(); }}>Drop course</button>}
-          <button className="button button-quiet" onClick={onClose}>Close</button>
-        </div>
-      </div>
-    </div>
   );
 }
 
@@ -676,112 +761,6 @@ function InstructorDashboard({ user, firstName, data, onRefresh, notify, go }) {
   );
 }
 
-function ManageCourseModal({ course: summary, notify, onClose, onChanged }) {
-  const confirm = useConfirm();
-  const [tab, setTab] = useState("details");
-  const [form, setForm] = useState(null);
-  const [roster, setRoster] = useState([]);
-  const [assignments, setAssignments] = useState([]);
-  const [announcements, setAnnouncements] = useState([]);
-  const [post, setPost] = useState({ title: "", body: "" });
-  const [busy, setBusy] = useState(false);
-
-  const load = useCallback(async () => {
-    try {
-      const [courseData, rosterData, assignmentData, announcementData] = await Promise.all([
-        api(`/courses/${summary.id}`), api(`/courses/${summary.id}/roster`),
-        api(`/courses/${summary.id}/assignments`), api(`/courses/${summary.id}/announcements`),
-      ]);
-      const c = courseData.course;
-      setForm((current) => current || { title: c.title, description: c.description, category: c.category, level: c.level, credits: c.credits, capacity: c.capacity });
-      setRoster(rosterData.students);
-      setAssignments(assignmentData.assignments);
-      setAnnouncements(announcementData.announcements);
-    } catch (error) { notify(error.message); }
-  }, [summary.id, notify]);
-  useEffect(() => { load(); }, [load]);
-
-  async function run(action, message) {
-    setBusy(true);
-    try {
-      await action();
-      if (message) notify(message);
-      await Promise.all([load(), onChanged()]);
-      return true;
-    } catch (error) { notify(error.message); return false; }
-    finally { setBusy(false); }
-  }
-  const saveCourse = (event) => { event.preventDefault(); run(() => api(`/courses/${summary.id}`, { method: "PUT", body: JSON.stringify(form) }), "Course updated."); };
-  async function deleteCourse() {
-    if (!await confirm(`Enrollments, assignments, and submissions for ${summary.title} will also be removed.`, "Delete this course?")) return;
-    setBusy(true);
-    try {
-      await api(`/courses/${summary.id}`, { method: "DELETE" });
-      notify("Course deleted.");
-      onClose();
-      await onChanged();
-    } catch (error) { notify(error.message); }
-    finally { setBusy(false); }
-  }
-  async function postAnnouncement(event) {
-    event.preventDefault();
-    if (await run(() => api(`/courses/${summary.id}/announcements`, { method: "POST", body: JSON.stringify(post) }), "Announcement posted.")) setPost({ title: "", body: "" });
-  }
-  const removeAnnouncement = async (id) => {
-    if (await confirm("Learners will no longer see this course announcement.", "Remove this announcement?")) {
-      await run(() => api(`/announcements/${id}`, { method: "DELETE" }), "Announcement removed.");
-    }
-  };
-  const removeAssignment = async (id) => {
-    if (await confirm("Submissions and grades for this assignment will also be deleted.", "Delete this assignment?")) {
-      await run(() => api(`/assignments/${id}`, { method: "DELETE" }), "Assignment deleted.");
-    }
-  };
-  const removeLearner = async (student) => {
-    if (!await confirm(`${student.name} will lose access to this course. A notification will be sent to them.`, "Unenroll this learner?")) return;
-    await run(() => api(`/courses/${summary.id}/roster/${student.id}`, { method: "DELETE" }), `${student.name} was unenrolled and notified.`);
-  };
-
-  const tabs = [["details", "Details"], ["roster", `Roster (${roster.length})`], ["assignments", `Assignments (${assignments.length})`], ["announcements", "Announcements"]];
-  return (
-    <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal-card modal-wide review-modal" onClick={(event) => event.stopPropagation()}>
-        <button type="button" className="modal-close" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
-        <span className="eyebrow">{summary.code} · Manage course</span>
-        <h2>{summary.title}</h2>
-        <div className="tab-row" role="tablist">{tabs.map(([key, label]) => <button key={key} role="tab" aria-selected={tab === key} className={tab === key ? "category-pill selected" : "category-pill"} onClick={() => setTab(key)}>{label}</button>)}</div>
-        <div className="manage-course-content">
-        {tab === "details" && (form ? (
-          <form onSubmit={saveCourse}>
-            <div className="form-grid">
-              <label className="full-field">Title<input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required maxLength="100" /></label>
-              <label>Category<select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })}>{categories.slice(1).map((item) => <option key={item}>{item}</option>)}</select></label>
-              <label>Level<select value={form.level} onChange={(event) => setForm({ ...form, level: event.target.value })}><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select></label>
-              <label>Credits<input type="number" min="1" max="12" value={form.credits} onChange={(event) => setForm({ ...form, credits: event.target.value })} required /></label>
-              <label>Capacity<input type="number" min="1" max="500" value={form.capacity} onChange={(event) => setForm({ ...form, capacity: event.target.value })} required /></label>
-              <label className="full-field">Description<textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} required maxLength="1200" /></label>
-            </div>
-            <div className="detail-actions"><button className="button button-primary" disabled={busy}>Save changes</button><button type="button" className="button button-outline danger-button" disabled={busy} onClick={deleteCourse}><Icon name="trash" size={15} /> Delete course</button></div>
-          </form>
-        ) : <div className="loading-card">Loading…</div>)}
-        {tab === "roster" && (roster.length ? <div className="table-scroll"><table><thead><tr><th>Learner</th><th>Email</th><th>Enrolled</th><th /></tr></thead><tbody>{roster.map((student) => <tr key={student.id}><td><strong>{student.name}</strong></td><td><a href={`mailto:${student.email}`}>{student.email}</a></td><td>{formatDate(student.enrolled_at)}</td><td><button type="button" className="text-link danger-link" disabled={busy} onClick={() => removeLearner(student)}>Unenroll</button></td></tr>)}</tbody></table></div> : <EmptyPanel title="No learners yet." description="Students who enroll will appear here." />)}
-        {tab === "assignments" && (assignments.length ? <div className="assignment-list">{assignments.map((item) => <div className="assignment-row" key={item.id}><span className="assignment-date"><strong>{new Date(item.due_date).toLocaleDateString("en", { day: "2-digit" })}</strong><small>{new Date(item.due_date).toLocaleDateString("en", { month: "short" })}</small></span><div className="assignment-info"><strong>{item.title}</strong><span>{item.max_points} points · {item.description}</span></div><button className="icon-button" onClick={() => removeAssignment(item.id)} aria-label={`Delete ${item.title}`}><Icon name="trash" size={15} /></button></div>)}</div> : <EmptyPanel title="No assignments yet." description="Use “New assignment” on your dashboard to add one." />)}
-        {tab === "announcements" && (
-          <>
-            <form className="announcement-form" onSubmit={postAnnouncement}>
-              <label>Title<input value={post.title} onChange={(event) => setPost({ ...post, title: event.target.value })} required maxLength="120" placeholder="Class moved to Thursday" /></label>
-              <label>Message<textarea value={post.body} onChange={(event) => setPost({ ...post, body: event.target.value })} required maxLength="4000" placeholder="Share an update with your learners…" /></label>
-              <button className="button button-primary" disabled={busy}><Icon name="bell" size={15} /> Post announcement</button>
-            </form>
-            <div className="announcement-list">{announcements.map((item) => <div className="announcement-item" key={item.id}><div className="announcement-top"><strong>{item.title}</strong><button className="icon-button" onClick={() => removeAnnouncement(item.id)} aria-label="Remove announcement"><Icon name="trash" size={14} /></button></div><p>{item.body}</p><small>{item.author_name} · {formatDate(item.created_at)}</small></div>)}</div>
-          </>
-        )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function SubmissionReview({ item, onGrade }) {
   const [grade, setGrade] = useState(item.grade ?? "");
   const [feedback, setFeedback] = useState(item.feedback ?? "");
@@ -796,136 +775,50 @@ function SubmissionReview({ item, onGrade }) {
   );
 }
 
-function SavedCoursesPage({ courses, user, go, onEnroll, busy, onDetails, onToggleSaved, enrolledIds }) {
-  return (
-    <section className="catalog-page page-width">
-      <div className="catalog-intro">
-        <div className="eyebrow">A shortlist for your next step</div>
-        <h1>Saved for<br /><span>when you’re ready.</span></h1>
-        <p>Keep interesting courses close while you decide what to learn next.</p>
-      </div>
-      {courses.length ? (
-        <div className="course-grid saved-course-grid">{courses.map((course) => <CourseCard key={course.id} course={course} onEnroll={onEnroll}
-          busy={busy} user={user} go={go} enrolled={enrolledIds.has(course.id)} onDetails={onDetails} saved
-          onToggleSaved={onToggleSaved} />)}</div>
-      ) : <div className="empty-state"><span className="empty-icon"><Icon name="heart" size={24} /></span>
-        <h3>No saved courses yet</h3><p>Save courses from the catalog to keep your options in one place.</p>
-        <button className="button button-outline" onClick={() => go("courses")}>Explore courses</button></div>}
-    </section>
-  );
-}
-
-function GradesPage({ notify, go }) {
-  const [courses, setCourses] = useState(null);
-  useEffect(() => {
-    api("/grades").then((data) => setCourses(data.courses)).catch((error) => notify(error.message));
-  }, [notify]);
-  if (!courses) return <section className="dashboard-page page-width"><div className="loading-card">Gathering your grades…</div></section>;
-  const graded = courses.filter((course) => course.percentage !== null);
-  const overall = graded.length ? Math.round((graded.reduce((sum, course) => sum + course.percentage, 0) / graded.length) * 10) / 10 : null;
+function AdminDashboard({ user, firstName, data, go, notify, onRefresh }) {
+  const confirm = useConfirm();
+  const [showUserForm, setShowUserForm] = useState(false);
+  const [manageCourse, setManageCourse] = useState(null);
+  const [userFilter, setUserFilter] = useState("");
+  async function changeRole(account, role) {
+    try {
+      await api(`/admin/users/${account.id}`, { method: "PATCH", body: JSON.stringify({ role }) });
+      notify(`${account.name} is now ${role === "admin" ? "an administrator" : `a ${role}`}.`);
+      await onRefresh();
+    } catch (error) { notify(error.message); await onRefresh(); }
+  }
+  async function removeUser(account) {
+    if (!await confirm(`Delete ${account.name}'s account and their associated learning records?`, "Delete this account?")) return;
+    try {
+      await api(`/admin/users/${account.id}`, { method: "DELETE" });
+      notify("Account deleted.");
+      await onRefresh();
+    } catch (error) { notify(error.message); }
+  }
+  const visibleUsers = data.users.filter((account) => `${account.name} ${account.email} ${account.role}`.toLowerCase().includes(userFilter.toLowerCase()));
+  const [busy, setBusy] = useState(false);
+  const [userForm, setUserForm] = useState({ name: "", email: "", password: "", role: "instructor" });
+  async function createUser(event) {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      await api("/admin/users", { method: "POST", body: JSON.stringify(userForm) });
+      notify("Account created.");
+      setShowUserForm(false);
+      setUserForm({ name: "", email: "", password: "", role: "instructor" });
+      await onRefresh();
+    } catch (error) { notify(error.message); }
+    finally { setBusy(false); }
+  }
   return (
     <section className="dashboard-page page-width">
-      <div className="dashboard-welcome"><div><div className="eyebrow">Progress report</div><h1>Your grades,<br /><span>at a glance.</span></h1><p>Percentages include graded work only.</p></div><button className="button button-outline" onClick={() => window.print()}>Print report</button></div>
-      <div className="dashboard-stats">
-        <StatCard label="Courses" value={courses.length} icon="book" tint="stat-lilac" />
-        <StatCard label="Total credits" value={courses.reduce((sum, course) => sum + course.credits, 0)} icon="cap" tint="stat-green" />
-        <StatCard label="Overall average" value={overall === null ? "—" : `${overall}%`} icon="chart" tint="stat-blue" />
-      </div>
-      {courses.length === 0 && <div className="dashboard-panel"><EmptyPanel title="No courses yet." action="Explore courses" onClick={() => go("courses")} /></div>}
-      {courses.map((course) => (
-        <section className="dashboard-panel grades-panel" key={course.id}>
-          <div className="grades-course-heading"><div><span className="eyebrow">{course.code} · {course.credits} credits</span><h2>{course.title}</h2></div><span className={`grade-chip ${course.percentage === null ? "" : course.percentage >= 70 ? "grade-good" : "grade-low"}`}>{course.percentage === null ? "Not graded" : `${course.percentage}%`}</span></div>
-          {course.percentage !== null && <div className="grades-progress" aria-label={`${course.percentage}% graded average`}><span style={{ width: `${Math.min(100, Math.max(0, course.percentage))}%` }} /></div>}
-          {course.assignments.length ? (
-            <div className="grade-assignment-list">{course.assignments.map((item) => {
-              const status = item.grade !== null ? "Graded" : item.submitted_at ? "Submitted" : new Date(item.due_date) < new Date() ? "Missing" : "Pending";
-              return <article className="grade-assignment" key={item.id}>
-                <div className="grade-assignment-heading"><div><strong>{item.title}</strong><small>Due {formatDate(item.due_date)}</small></div><span className={`status-pill ${status === "Graded" || status === "Submitted" ? "status-done" : ""}`}>{status}</span></div>
-                <div className="grade-assignment-details"><div><small>Score</small><strong>{item.grade !== null ? `${item.grade} / ${item.max_points}` : `— / ${item.max_points}`}</strong></div><div className="grade-feedback"><small>Instructor feedback</small><p>{item.feedback || "No feedback yet."}</p></div></div>
-              </article>;
-            })}</div>
-          ) : <p className="muted-note">No assignments have been posted yet.</p>}
-        </section>
-      ))}
+      <div className="dashboard-welcome"><div><div className="eyebrow">Administrator overview</div><h1>Here's the big<br /><span>picture, {firstName}.</span></h1><p>A healthy learning community starts with the little details.</p></div><div className="admin-actions"><button className="button button-outline" onClick={() => setShowUserForm(true)}><Icon name="plus" size={16} /> Add account</button><button className="button button-primary" onClick={() => go("courses")}>Browse catalog <Icon name="arrow" size={16} /></button></div></div>
+      <div className="dashboard-stats"><StatCard label="Students" value={data.stats.students} icon="users" tint="stat-lilac" /><StatCard label="Instructors" value={data.stats.instructors} icon="cap" tint="stat-green" /><StatCard label="Courses" value={data.stats.courses} icon="book" tint="stat-peach" /><StatCard label="Enrollments" value={data.stats.enrollments} icon="grid" tint="stat-blue" /></div>
+      <section className="dashboard-panel admin-table-panel"><div className="panel-heading"><div><span className="eyebrow">The learning community</span><h2>All courses</h2></div></div><div className="table-scroll"><table><thead><tr><th>Course</th><th>Instructor</th><th>Category</th><th>Enrollment</th><th /></tr></thead><tbody>{data.courses.map((course) => <tr key={course.id}><td><strong>{course.title}</strong><small>{course.code}</small></td><td>{course.instructor_name}</td><td>{course.category}</td><td>{course.enrolled_count}/{course.capacity}</td><td><button className="text-link" onClick={() => setManageCourse(course)}>Manage</button></td></tr>)}</tbody></table></div></section>
+      <section className="dashboard-panel admin-table-panel"><div className="panel-heading"><div><span className="eyebrow">People with a place here</span><h2>Accounts</h2></div><input className="table-filter" value={userFilter} onChange={(event) => setUserFilter(event.target.value)} placeholder="Filter accounts…" aria-label="Filter accounts" /></div><div className="table-scroll"><table><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Joined</th><th /></tr></thead><tbody>{visibleUsers.map((account) => <tr key={account.id}><td><strong>{account.name}</strong></td><td>{account.email}</td><td>{account.id === user.id ? <span className="role-badge">{account.role} (you)</span> : <select className="role-select" value={account.role} onChange={(event) => changeRole(account, event.target.value)} aria-label={`Role for ${account.name}`}><option value="student">Student</option><option value="instructor">Instructor</option><option value="admin">Admin</option></select>}</td><td>{formatDate(account.created_at)}</td><td>{account.id !== user.id && <button className="icon-button" onClick={() => removeUser(account)} aria-label={`Delete ${account.name}`}><Icon name="trash" size={15} /></button>}</td></tr>)}</tbody></table></div></section>
+      {manageCourse && <ManageCourseModal course={manageCourse} notify={notify} onClose={() => setManageCourse(null)} onChanged={onRefresh} />}
+      {showUserForm && <div className="modal-backdrop" onClick={() => setShowUserForm(false)}><form className="modal-card" onSubmit={createUser} onClick={(event) => event.stopPropagation()}><button type="button" className="modal-close" onClick={() => setShowUserForm(false)}><Icon name="close" /></button><span className="eyebrow">Grow the team</span><h2>Create an account</h2><label>Full name<input value={userForm.name} onChange={(event) => setUserForm({ ...userForm, name: event.target.value })} required minLength="2" maxLength="80" /></label><label>Email address<input value={userForm.email} onChange={(event) => setUserForm({ ...userForm, email: event.target.value })} type="email" required /></label><label>Temporary password<input value={userForm.password} onChange={(event) => setUserForm({ ...userForm, password: event.target.value })} type="password" required minLength="8" maxLength="128" /></label><label>Role<select value={userForm.role} onChange={(event) => setUserForm({ ...userForm, role: event.target.value })}><option value="student">Student</option><option value="instructor">Instructor</option><option value="admin">Administrator</option></select></label><button className="button button-primary button-large" disabled={busy}>{busy ? "Creating…" : "Create account"} <Icon name="arrow" size={16} /></button></form></div>}
     </section>
-  );
-}
-
-function AnnouncementFeed() {
-  const [items, setItems] = useState(null);
-  useEffect(() => {
-    api("/announcements").then((data) => setItems(data.announcements)).catch(() => setItems([]));
-  }, []);
-  if (!items) return null;
-  return (
-    <section className="dashboard-panel announcement-panel">
-      <div className="panel-heading"><div><span className="eyebrow">From your courses</span><h2>Announcements</h2></div><Icon name="bell" size={18} /></div>
-      {items.length ? <div className="announcement-list">{items.slice(0, 6).map((item) => <div className="announcement-item" key={item.id}><div className="announcement-top"><strong>{item.title}</strong><span className="row-badge">{item.code}</span></div><p>{item.body}</p><small>{item.author_name} · {formatDate(item.created_at)}</small></div>)}</div> : <EmptyPanel title="All quiet for now." description="Course announcements will show up here." />}
-    </section>
-  );
-}
-
-function NotificationsMenu({ notify }) {
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-  const [open, setOpen] = useState(false);
-
-  const loadNotifications = useCallback(async () => {
-    try {
-      const result = await api("/notifications");
-      setNotifications(result.notifications);
-      setUnreadCount(result.unread_count);
-    } catch (error) {
-      notify(error.message);
-    }
-  }, [notify]);
-
-  useEffect(() => {
-    loadNotifications();
-    window.addEventListener("focus", loadNotifications);
-    const timer = window.setInterval(loadNotifications, 30000);
-    return () => {
-      window.removeEventListener("focus", loadNotifications);
-      window.clearInterval(timer);
-    };
-  }, [loadNotifications]);
-
-  async function markRead(id) {
-    try {
-      await api(`/notifications/${id}/read`, { method: "PATCH", body: "{}" });
-      await loadNotifications();
-    } catch (error) { notify(error.message); }
-  }
-
-  async function markAllRead() {
-    try {
-      await api("/notifications/read-all", { method: "PATCH", body: "{}" });
-      await loadNotifications();
-      notify("All notifications marked as read.");
-    } catch (error) { notify(error.message); }
-  }
-
-  return (
-    <div className="notification-menu">
-      <button type="button" className={`notification-trigger ${open ? "active" : ""}`} aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ""}`} aria-expanded={open} onClick={() => { setOpen((value) => !value); loadNotifications(); }}>
-        <Icon name="bell" size={18} />
-        {unreadCount > 0 && <span className="notification-count">{unreadCount > 99 ? "99+" : unreadCount}</span>}
-      </button>
-      {open && <section className="notification-popover" aria-label="Notifications">
-        <div className="notification-heading"><div><strong>Notifications</strong><small>{unreadCount ? `${unreadCount} unread` : "You're all caught up"}</small></div>
-          {unreadCount > 0 && <button type="button" className="text-link" onClick={markAllRead}>Mark all read</button>}
-        </div>
-        <div className="notification-list">
-          {notifications.length ? notifications.map((item) => (
-            <button type="button" className={`notification-item ${item.read_at ? "" : "unread"}`} key={item.id} onClick={() => !item.read_at && markRead(item.id)}>
-              <span className="notification-item-icon"><Icon name="bell" size={15} /></span>
-              <span className="notification-item-copy"><strong>{item.title}</strong><span>{item.message}</span><small>{formatDate(item.created_at)}</small></span>
-              {!item.read_at && <span className="notification-unread-dot" />}
-            </button>
-          )) : <div className="notification-empty">No notifications yet.</div>}
-        </div>
-      </section>}
-    </div>
   );
 }
 
@@ -1174,6 +1067,263 @@ function ProfilePage({ user, targetId, setUser, notify, go }) {
   );
 }
 
+function GradesPage({ notify, go }) {
+  const [courses, setCourses] = useState(null);
+  useEffect(() => {
+    api("/grades").then((data) => setCourses(data.courses)).catch((error) => notify(error.message));
+  }, [notify]);
+  if (!courses) return <section className="dashboard-page page-width"><div className="loading-card">Gathering your grades…</div></section>;
+  const graded = courses.filter((course) => course.percentage !== null);
+  const overall = graded.length ? Math.round((graded.reduce((sum, course) => sum + course.percentage, 0) / graded.length) * 10) / 10 : null;
+  return (
+    <section className="dashboard-page page-width">
+      <div className="dashboard-welcome"><div><div className="eyebrow">Progress report</div><h1>Your grades,<br /><span>at a glance.</span></h1><p>Percentages include graded work only.</p></div><button className="button button-outline" onClick={() => window.print()}>Print report</button></div>
+      <div className="dashboard-stats">
+        <StatCard label="Courses" value={courses.length} icon="book" tint="stat-lilac" />
+        <StatCard label="Total credits" value={courses.reduce((sum, course) => sum + course.credits, 0)} icon="cap" tint="stat-green" />
+        <StatCard label="Overall average" value={overall === null ? "—" : `${overall}%`} icon="chart" tint="stat-blue" />
+      </div>
+      {courses.length === 0 && <div className="dashboard-panel"><EmptyPanel title="No courses yet." action="Explore courses" onClick={() => go("courses")} /></div>}
+      {courses.map((course) => (
+        <section className="dashboard-panel grades-panel" key={course.id}>
+          <div className="grades-course-heading"><div><span className="eyebrow">{course.code} · {course.credits} credits</span><h2>{course.title}</h2></div><span className={`grade-chip ${course.percentage === null ? "" : course.percentage >= 70 ? "grade-good" : "grade-low"}`}>{course.percentage === null ? "Not graded" : `${course.percentage}%`}</span></div>
+          {course.percentage !== null && <div className="grades-progress" aria-label={`${course.percentage}% graded average`}><span style={{ width: `${Math.min(100, Math.max(0, course.percentage))}%` }} /></div>}
+          {course.assignments.length ? (
+            <div className="grade-assignment-list">{course.assignments.map((item) => {
+              const status = item.grade !== null ? "Graded" : item.submitted_at ? "Submitted" : new Date(item.due_date) < new Date() ? "Missing" : "Pending";
+              return <article className="grade-assignment" key={item.id}>
+                <div className="grade-assignment-heading"><div><strong>{item.title}</strong><small>Due {formatDate(item.due_date)}</small></div><span className={`status-pill ${status === "Graded" || status === "Submitted" ? "status-done" : ""}`}>{status}</span></div>
+                <div className="grade-assignment-details"><div><small>Score</small><strong>{item.grade !== null ? `${item.grade} / ${item.max_points}` : `— / ${item.max_points}`}</strong></div><div className="grade-feedback"><small>Instructor feedback</small><p>{item.feedback || "No feedback yet."}</p></div></div>
+              </article>;
+            })}</div>
+          ) : <p className="muted-note">No assignments have been posted yet.</p>}
+        </section>
+      ))}
+    </section>
+  );
+}
+
+function CourseDetailModal({ course: initialCourse, user, enrolled, busy, onClose, onEnroll, onDrop, go }) {
+  const [course, setCourse] = useState(initialCourse);
+  const [announcements, setAnnouncements] = useState([]);
+  useEffect(() => {
+    api(`/courses/${initialCourse.id}`).then((data) => setCourse(data.course)).catch(() => {});
+    if (user && (enrolled || user.role !== "student")) {
+      api(`/courses/${initialCourse.id}/announcements`).then((data) => setAnnouncements(data.announcements)).catch(() => setAnnouncements([]));
+    }
+  }, [initialCourse.id, user, enrolled]);
+  const full = course.enrolled_count >= course.capacity;
+  const seatsLeft = Math.max(0, course.capacity - course.enrolled_count);
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card modal-wide" onClick={(event) => event.stopPropagation()}>
+        <button type="button" className="modal-close" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
+        <span className="eyebrow">{course.code} · {course.category}</span>
+        <h2>{course.title}</h2>
+        <p className="detail-description">{course.description}</p>
+        <div className="detail-facts">
+          <span><small>Instructor</small>{course.instructor_name}</span>
+          <span><small>Level</small>{course.level}</span>
+          <span><small>Credits</small>{course.credits}</span>
+          <span><small>Seats left</small>{seatsLeft} of {course.capacity}</span>
+        </div>
+        <div className="progress-track detail-capacity"><span style={{ width: `${Math.min(100, (course.enrolled_count / course.capacity) * 100)}%` }} /></div>
+        {announcements.length > 0 && <div className="detail-announcements"><strong>Latest announcements</strong>{announcements.slice(0, 3).map((item) => <div className="announcement-item" key={item.id}><strong>{item.title}</strong><p>{item.body}</p><small>{item.author_name} · {formatDate(item.created_at)}</small></div>)}</div>}
+        <div className="detail-actions">
+          {!user && <button className="button button-primary" onClick={() => { onClose(); go("login"); }}>Sign in to enroll <Icon name="arrow" size={16} /></button>}
+          {user?.role === "student" && !enrolled && <button className="button button-primary" disabled={busy || full} onClick={async () => { await onEnroll(course.id); onClose(); }}>{full ? "Course is full" : "Enroll in course"} <Icon name="arrow" size={16} /></button>}
+          {user?.role === "student" && enrolled && <button className="button button-outline danger-button" disabled={busy} onClick={async () => { await onDrop(course.id); onClose(); }}>Drop course</button>}
+          <button className="button button-quiet" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AnnouncementFeed() {
+  const [items, setItems] = useState(null);
+  useEffect(() => {
+    api("/announcements").then((data) => setItems(data.announcements)).catch(() => setItems([]));
+  }, []);
+  if (!items) return null;
+  return (
+    <section className="dashboard-panel announcement-panel">
+      <div className="panel-heading"><div><span className="eyebrow">From your courses</span><h2>Announcements</h2></div><Icon name="bell" size={18} /></div>
+      {items.length ? <div className="announcement-list">{items.slice(0, 6).map((item) => <div className="announcement-item" key={item.id}><div className="announcement-top"><strong>{item.title}</strong><span className="row-badge">{item.code}</span></div><p>{item.body}</p><small>{item.author_name} · {formatDate(item.created_at)}</small></div>)}</div> : <EmptyPanel title="All quiet for now." description="Course announcements will show up here." />}
+    </section>
+  );
+}
+
+function NotificationsMenu({ notify }) {
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [open, setOpen] = useState(false);
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      const result = await api("/notifications");
+      setNotifications(result.notifications);
+      setUnreadCount(result.unread_count);
+    } catch (error) {
+      notify(error.message);
+    }
+  }, [notify]);
+
+  useEffect(() => {
+    loadNotifications();
+    window.addEventListener("focus", loadNotifications);
+    const timer = window.setInterval(loadNotifications, 30000);
+    return () => {
+      window.removeEventListener("focus", loadNotifications);
+      window.clearInterval(timer);
+    };
+  }, [loadNotifications]);
+
+  async function markRead(id) {
+    try {
+      await api(`/notifications/${id}/read`, { method: "PATCH", body: "{}" });
+      await loadNotifications();
+    } catch (error) { notify(error.message); }
+  }
+
+  async function markAllRead() {
+    try {
+      await api("/notifications/read-all", { method: "PATCH", body: "{}" });
+      await loadNotifications();
+      notify("All notifications marked as read.");
+    } catch (error) { notify(error.message); }
+  }
+
+  return (
+    <div className="notification-menu">
+      <button type="button" className={`notification-trigger ${open ? "active" : ""}`} aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ""}`} aria-expanded={open} onClick={() => { setOpen((value) => !value); loadNotifications(); }}>
+        <Icon name="bell" size={18} />
+        {unreadCount > 0 && <span className="notification-count">{unreadCount > 99 ? "99+" : unreadCount}</span>}
+      </button>
+      {open && <section className="notification-popover" aria-label="Notifications">
+        <div className="notification-heading"><div><strong>Notifications</strong><small>{unreadCount ? `${unreadCount} unread` : "You're all caught up"}</small></div>
+          {unreadCount > 0 && <button type="button" className="text-link" onClick={markAllRead}>Mark all read</button>}
+        </div>
+        <div className="notification-list">
+          {notifications.length ? notifications.map((item) => (
+            <button type="button" className={`notification-item ${item.read_at ? "" : "unread"}`} key={item.id} onClick={() => !item.read_at && markRead(item.id)}>
+              <span className="notification-item-icon"><Icon name="bell" size={15} /></span>
+              <span className="notification-item-copy"><strong>{item.title}</strong><span>{item.message}</span><small>{formatDate(item.created_at)}</small></span>
+              {!item.read_at && <span className="notification-unread-dot" />}
+            </button>
+          )) : <div className="notification-empty">No notifications yet.</div>}
+        </div>
+      </section>}
+    </div>
+  );
+}
+
+function ManageCourseModal({ course: summary, notify, onClose, onChanged }) {
+  const confirm = useConfirm();
+  const [tab, setTab] = useState("details");
+  const [form, setForm] = useState(null);
+  const [roster, setRoster] = useState([]);
+  const [assignments, setAssignments] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
+  const [post, setPost] = useState({ title: "", body: "" });
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(async () => {
+    try {
+      const [courseData, rosterData, assignmentData, announcementData] = await Promise.all([
+        api(`/courses/${summary.id}`), api(`/courses/${summary.id}/roster`),
+        api(`/courses/${summary.id}/assignments`), api(`/courses/${summary.id}/announcements`),
+      ]);
+      const c = courseData.course;
+      setForm((current) => current || { title: c.title, description: c.description, category: c.category, level: c.level, credits: c.credits, capacity: c.capacity });
+      setRoster(rosterData.students);
+      setAssignments(assignmentData.assignments);
+      setAnnouncements(announcementData.announcements);
+    } catch (error) { notify(error.message); }
+  }, [summary.id, notify]);
+  useEffect(() => { load(); }, [load]);
+
+  async function run(action, message) {
+    setBusy(true);
+    try {
+      await action();
+      if (message) notify(message);
+      await Promise.all([load(), onChanged()]);
+      return true;
+    } catch (error) { notify(error.message); return false; }
+    finally { setBusy(false); }
+  }
+  const saveCourse = (event) => { event.preventDefault(); run(() => api(`/courses/${summary.id}`, { method: "PUT", body: JSON.stringify(form) }), "Course updated."); };
+  async function deleteCourse() {
+    if (!await confirm(`Enrollments, assignments, and submissions for ${summary.title} will also be removed.`, "Delete this course?")) return;
+    setBusy(true);
+    try {
+      await api(`/courses/${summary.id}`, { method: "DELETE" });
+      notify("Course deleted.");
+      onClose();
+      await onChanged();
+    } catch (error) { notify(error.message); }
+    finally { setBusy(false); }
+  }
+  async function postAnnouncement(event) {
+    event.preventDefault();
+    if (await run(() => api(`/courses/${summary.id}/announcements`, { method: "POST", body: JSON.stringify(post) }), "Announcement posted.")) setPost({ title: "", body: "" });
+  }
+  const removeAnnouncement = async (id) => {
+    if (await confirm("Learners will no longer see this course announcement.", "Remove this announcement?")) {
+      await run(() => api(`/announcements/${id}`, { method: "DELETE" }), "Announcement removed.");
+    }
+  };
+  const removeAssignment = async (id) => {
+    if (await confirm("Submissions and grades for this assignment will also be deleted.", "Delete this assignment?")) {
+      await run(() => api(`/assignments/${id}`, { method: "DELETE" }), "Assignment deleted.");
+    }
+  };
+  const removeLearner = async (student) => {
+    if (!await confirm(`${student.name} will lose access to this course. A notification will be sent to them.`, "Unenroll this learner?")) return;
+    await run(() => api(`/courses/${summary.id}/roster/${student.id}`, { method: "DELETE" }), `${student.name} was unenrolled and notified.`);
+  };
+
+  const tabs = [["details", "Details"], ["roster", `Roster (${roster.length})`], ["assignments", `Assignments (${assignments.length})`], ["announcements", "Announcements"]];
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal-card modal-wide review-modal" onClick={(event) => event.stopPropagation()}>
+        <button type="button" className="modal-close" onClick={onClose} aria-label="Close"><Icon name="close" /></button>
+        <span className="eyebrow">{summary.code} · Manage course</span>
+        <h2>{summary.title}</h2>
+        <div className="tab-row" role="tablist">{tabs.map(([key, label]) => <button key={key} role="tab" aria-selected={tab === key} className={tab === key ? "category-pill selected" : "category-pill"} onClick={() => setTab(key)}>{label}</button>)}</div>
+        <div className="manage-course-content">
+        {tab === "details" && (form ? (
+          <form onSubmit={saveCourse}>
+            <div className="form-grid">
+              <label className="full-field">Title<input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required maxLength="100" /></label>
+              <label>Category<select value={form.category} onChange={(event) => setForm({ ...form, category: event.target.value })}>{categories.slice(1).map((item) => <option key={item}>{item}</option>)}</select></label>
+              <label>Level<select value={form.level} onChange={(event) => setForm({ ...form, level: event.target.value })}><option>Beginner</option><option>Intermediate</option><option>Advanced</option></select></label>
+              <label>Credits<input type="number" min="1" max="12" value={form.credits} onChange={(event) => setForm({ ...form, credits: event.target.value })} required /></label>
+              <label>Capacity<input type="number" min="1" max="500" value={form.capacity} onChange={(event) => setForm({ ...form, capacity: event.target.value })} required /></label>
+              <label className="full-field">Description<textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} required maxLength="1200" /></label>
+            </div>
+            <div className="detail-actions"><button className="button button-primary" disabled={busy}>Save changes</button><button type="button" className="button button-outline danger-button" disabled={busy} onClick={deleteCourse}><Icon name="trash" size={15} /> Delete course</button></div>
+          </form>
+        ) : <div className="loading-card">Loading…</div>)}
+        {tab === "roster" && (roster.length ? <div className="table-scroll"><table><thead><tr><th>Learner</th><th>Email</th><th>Enrolled</th><th /></tr></thead><tbody>{roster.map((student) => <tr key={student.id}><td><strong>{student.name}</strong></td><td><a href={`mailto:${student.email}`}>{student.email}</a></td><td>{formatDate(student.enrolled_at)}</td><td><button type="button" className="text-link danger-link" disabled={busy} onClick={() => removeLearner(student)}>Unenroll</button></td></tr>)}</tbody></table></div> : <EmptyPanel title="No learners yet." description="Students who enroll will appear here." />)}
+        {tab === "assignments" && (assignments.length ? <div className="assignment-list">{assignments.map((item) => <div className="assignment-row" key={item.id}><span className="assignment-date"><strong>{new Date(item.due_date).toLocaleDateString("en", { day: "2-digit" })}</strong><small>{new Date(item.due_date).toLocaleDateString("en", { month: "short" })}</small></span><div className="assignment-info"><strong>{item.title}</strong><span>{item.max_points} points · {item.description}</span></div><button className="icon-button" onClick={() => removeAssignment(item.id)} aria-label={`Delete ${item.title}`}><Icon name="trash" size={15} /></button></div>)}</div> : <EmptyPanel title="No assignments yet." description="Use “New assignment” on your dashboard to add one." />)}
+        {tab === "announcements" && (
+          <>
+            <form className="announcement-form" onSubmit={postAnnouncement}>
+              <label>Title<input value={post.title} onChange={(event) => setPost({ ...post, title: event.target.value })} required maxLength="120" placeholder="Class moved to Thursday" /></label>
+              <label>Message<textarea value={post.body} onChange={(event) => setPost({ ...post, body: event.target.value })} required maxLength="4000" placeholder="Share an update with your learners…" /></label>
+              <button className="button button-primary" disabled={busy}><Icon name="bell" size={15} /> Post announcement</button>
+            </form>
+            <div className="announcement-list">{announcements.map((item) => <div className="announcement-item" key={item.id}><div className="announcement-top"><strong>{item.title}</strong><button className="icon-button" onClick={() => removeAnnouncement(item.id)} aria-label="Remove announcement"><Icon name="trash" size={14} /></button></div><p>{item.body}</p><small>{item.author_name} · {formatDate(item.created_at)}</small></div>)}</div>
+          </>
+        )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StatCard({ label, value, icon, tint }) {
   return <div className="stat-card"><span className={`stat-icon ${tint}`}><Icon name={icon} size={19} /></span><span className="stat-value">{value}</span><span className="stat-label">{label}</span></div>;
 }
@@ -1183,11 +1333,3 @@ function EmptyPanel({ title, description, action, onClick }) {
 }
 
 createRoot(document.getElementById("root")).render(<React.StrictMode><ConfirmProvider><App /></ConfirmProvider></React.StrictMode>);
-
-
-const root = createRoot(document.getElementById("root"));
-root.render(
-  <ConfirmProvider>
-    <App />
-  </ConfirmProvider>
-);

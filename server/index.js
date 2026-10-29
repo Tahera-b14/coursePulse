@@ -303,6 +303,22 @@ app.get("/api/dashboard", requireAuth, (req, res) => {
     
   }
   
+  if (req.user.role === "admin") {
+    const stats = {
+      students: db.prepare("SELECT COUNT(*) AS total FROM users WHERE role = 'student'").get().total,
+      instructors: db.prepare("SELECT COUNT(*) AS total FROM users WHERE role = 'instructor'").get().total,
+      courses: db.prepare("SELECT COUNT(*) AS total FROM courses").get().total,
+      enrollments: db.prepare("SELECT COUNT(*) AS total FROM enrollments").get().total,
+    };
+    const courses = db.prepare(`
+      SELECT c.id, c.code, c.title, c.category, c.capacity, u.name AS instructor_name,
+        (SELECT COUNT(*) FROM enrollments e WHERE e.course_id = c.id) AS enrolled_count
+      FROM courses c JOIN users u ON u.id = c.instructor_id ORDER BY c.title
+    `).all();
+    const users = db.prepare("SELECT id, name, email, role, created_at FROM users ORDER BY created_at DESC").all();
+    return res.json({ stats, courses, users });
+  }
+  
   const learnerCount = db.prepare(`
     SELECT COUNT(DISTINCT e.student_id) AS total
     FROM enrollments e JOIN courses c ON c.id = e.course_id
@@ -792,6 +808,83 @@ app.delete("/api/people/:id/comments/:commentId", requireAuth, (req, res) => {
   res.status(204).end();
 });
 
+app.post("/api/admin/users", requireAuth, requireRole("admin"), (req, res, next) => {
+  const { name, email, password, role } = req.body || {};
+  if (typeof name !== "string" || name.trim().length < 2 || name.trim().length > 80) {
+    return res.status(400).json({ error: "Name must be between 2 and 80 characters." });
+  }
+  if (typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) {
+    return res.status(400).json({ error: "Enter a valid email address." });
+  }
+  if (typeof password !== "string" || password.length < 8 || password.length > 128) {
+    return res.status(400).json({ error: "Password must be between 8 and 128 characters." });
+  }
+  if (!["student", "instructor", "admin"].includes(role)) {
+    return res.status(400).json({ error: "Choose a supported account role." });
+  }
+  try {
+    const result = db.prepare(`
+      INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, ?)
+    `).run(name.trim(), email.trim().toLowerCase(), bcrypt.hashSync(password, 12), role);
+    const user = db.prepare("SELECT id, name, email, role FROM users WHERE id = ?").get(result.lastInsertRowid);
+    res.status(201).json({ user });
+  } catch (error) {
+    if (error.code === "SQLITE_CONSTRAINT_UNIQUE") return res.status(409).json({ error: "An account with that email already exists." });
+    next(error);
+  }
+});
+
+app.patch("/api/admin/users/:id", requireAuth, requireRole("admin"), (req, res) => {
+  const id = Number(req.params.id);
+  const { role } = req.body || {};
+  if (!["student", "instructor", "admin"].includes(role)) return res.status(400).json({ error: "Choose a supported account role." });
+  if (id === req.user.id) return res.status(400).json({ error: "You cannot change your own role." });
+  const target = db.prepare("SELECT id, role FROM users WHERE id = ?").get(id);
+  if (!target) return res.status(404).json({ error: "Account not found." });
+  if (target.role === "instructor" && role !== "instructor") {
+    const owned = db.prepare("SELECT COUNT(*) AS total FROM courses WHERE instructor_id = ?").get(id).total;
+    if (owned > 0) return res.status(409).json({ error: "Reassign or delete this instructor's courses first." });
+  }
+  db.prepare("UPDATE users SET role = ? WHERE id = ?").run(role, id);
+  res.json({ user: db.prepare("SELECT id, name, email, role, created_at FROM users WHERE id = ?").get(id) });
+});
+
+app.delete("/api/admin/users/:id", requireAuth, requireRole("admin"), (req, res) => {
+  const id = Number(req.params.id);
+  if (id === req.user.id) return res.status(400).json({ error: "You cannot delete your own account." });
+  const target = db.prepare("SELECT id FROM users WHERE id = ?").get(id);
+  if (!target) return res.status(404).json({ error: "Account not found." });
+  const owned = db.prepare("SELECT COUNT(*) AS total FROM courses WHERE instructor_id = ?").get(id).total;
+  if (owned > 0) return res.status(409).json({ error: "This instructor still teaches courses. Delete those courses first." });
+  const fileKeys = db.prepare("SELECT file_key FROM submissions WHERE student_id = ? AND file_key IS NOT NULL").all(id)
+    .map((submission) => submission.file_key);
+  db.prepare("DELETE FROM users WHERE id = ?").run(id);
+  removeHomeworkFiles(fileKeys);
+  res.status(204).end();
+});
+
+app.delete("/api/courses/:id/roster/:studentId", requireAuth, requireRole("instructor", "admin"), (req, res) => {
+  const course = readCourse(Number(req.params.id));
+  if (!course) return res.status(404).json({ error: "Course not found." });
+  if (!canManageCourse(req, course)) return res.status(403).json({ error: "You can only manage learners in courses you teach." });
+  const studentId = Number(req.params.studentId);
+  const student = db.prepare(`
+    SELECT u.id, u.name, u.role FROM users u JOIN enrollments e ON e.student_id = u.id
+    WHERE u.id = ? AND e.course_id = ? AND e.status = 'active'
+  `).get(studentId, course.id);
+  if (!student) return res.status(404).json({ error: "Active learner enrollment not found." });
+  if (student.role !== "student") return res.status(400).json({ error: "Only student enrollments can be removed." });
+  const removeEnrollment = db.transaction(() => {
+    db.prepare("DELETE FROM enrollments WHERE student_id = ? AND course_id = ?").run(studentId, course.id);
+    db.prepare(`
+      INSERT INTO notifications (user_id, course_id, title, message)
+      VALUES (?, ?, ?, ?)
+    `).run(studentId, course.id, "Course enrollment updated", `You have been unenrolled from ${course.code} · ${course.title}.`);
+  });
+  removeEnrollment();
+  res.json({ message: `${student.name} was unenrolled from ${course.code}.` });
+});
+
 app.get("/api/courses/:id/roster", requireAuth, requireRole("instructor", "admin"), (req, res) => {
   const course = readCourse(Number(req.params.id));
   if (!course) return res.status(404).json({ error: "Course not found." });
@@ -803,6 +896,14 @@ app.get("/api/courses/:id/roster", requireAuth, requireRole("instructor", "admin
   `).all(course.id);
   res.json({ students });
 });
+
+const currentFile = fileURLToPath(import.meta.url);
+const currentDirectory = path.dirname(currentFile);
+const distDirectory = path.resolve(currentDirectory, "../dist");
+if (isProduction) {
+  app.use(express.static(distDirectory));
+  app.get("/{*splat}", (_req, res) => res.sendFile(path.join(distDirectory, "index.html")));
+}
 
 app.use((error, _req, res, _next) => {
   console.error("Request failed:", error);
