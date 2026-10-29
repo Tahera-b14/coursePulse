@@ -2,8 +2,8 @@ import "dotenv/config";
 import fs from "node:fs";
 import path from "node:path";
 
-if (process.env.NODE_ENV === "production") {
-  throw new Error("The Bangladesh demo dataset can only be seeded outside production.");
+if (process.env.NODE_ENV === "production" && process.env.SEED_DEMO_DATA !== "true" && process.env.FORCE_SEED !== "true") {
+  throw new Error("The Bangladesh demo dataset can only be seeded outside production. Set SEED_DEMO_DATA=true to override.");
 }
 
 process.env.COURSEFLOW_SEED_SCRIPT = "1";

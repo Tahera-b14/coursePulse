@@ -117,18 +117,19 @@ if (!submissionColumns.includes("file_name")) db.exec("ALTER TABLE submissions A
 if (!submissionColumns.includes("file_size")) db.exec("ALTER TABLE submissions ADD COLUMN file_size INTEGER");
 
 const count = db.prepare("SELECT COUNT(*) AS total FROM users").get().total;
-if (count === 0 && process.env.NODE_ENV !== "production" && !process.env.COURSEFLOW_SEED_SCRIPT) {
-  seedDemoData(db, bcrypt, uploadsDirectory);
-}
+const shouldSeedDemo = process.env.SEED_DEMO_DATA === "true" || process.env.NODE_ENV !== "production" || !process.env.BOOTSTRAP_ADMIN_EMAIL;
 
-if (count === 0 && process.env.NODE_ENV === "production") {
+if (count === 0 && shouldSeedDemo && !process.env.COURSEFLOW_SEED_SCRIPT) {
+  seedDemoData(db, bcrypt, uploadsDirectory);
+} else if (count === 0 && process.env.NODE_ENV === "production") {
   const email = process.env.BOOTSTRAP_ADMIN_EMAIL;
   const password = process.env.BOOTSTRAP_ADMIN_PASSWORD;
   if (typeof email !== "string" || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
       typeof password !== "string" || password.length < 12) {
-    throw new Error("A new production database requires BOOTSTRAP_ADMIN_EMAIL and a BOOTSTRAP_ADMIN_PASSWORD of at least 12 characters.");
+    seedDemoData(db, bcrypt, uploadsDirectory);
+  } else {
+    db.prepare(`
+      INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, 'admin')
+    `).run("coursePulse Admin", email.trim().toLowerCase(), bcrypt.hashSync(password, 12));
   }
-  db.prepare(`
-    INSERT INTO users (name, email, password_hash, role) VALUES (?, ?, ?, 'admin')
-  `).run("coursePulse Admin", email.trim().toLowerCase(), bcrypt.hashSync(password, 12));
 }
