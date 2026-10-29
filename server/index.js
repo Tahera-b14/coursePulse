@@ -596,6 +596,41 @@ app.patch("/api/notifications/:id/read", requireAuth, (req, res) => {
   res.json({ message: "Notification marked as read." });
 });
 
+app.get("/api/saved-courses", requireAuth, (req, res) => {
+  const courses = db.prepare(`
+    SELECT c.id, c.code, c.title, c.description, c.category, c.level, c.credits, c.capacity,
+      u.name AS instructor_name,
+      (SELECT COUNT(*) FROM enrollments e WHERE e.course_id = c.id AND e.status = 'active') AS enrolled_count
+    FROM saved_courses saved
+    JOIN courses c ON c.id = saved.course_id
+    JOIN users u ON u.id = c.instructor_id
+    WHERE saved.user_id = ?
+    ORDER BY saved.saved_at DESC, saved.course_id DESC
+  `).all(req.user.id);
+  res.json({ courses });
+});
+
+app.post("/api/saved-courses/:id", requireAuth, (req, res, next) => {
+  const course = readCourse(Number(req.params.id));
+  if (!course) return res.status(404).json({ error: "Course not found." });
+  try {
+    db.prepare("INSERT INTO saved_courses (user_id, course_id) VALUES (?, ?)").run(req.user.id, course.id);
+    res.status(201).json({ message: `${course.title} saved for later.` });
+  } catch (error) {
+    if (error.code === "SQLITE_CONSTRAINT_PRIMARYKEY" || error.code === "SQLITE_CONSTRAINT_UNIQUE") {
+      return res.status(409).json({ error: "This course is already saved." });
+    }
+    return next(error);
+  }
+});
+
+app.delete("/api/saved-courses/:id", requireAuth, (req, res) => {
+  const result = db.prepare("DELETE FROM saved_courses WHERE user_id = ? AND course_id = ?")
+    .run(req.user.id, Number(req.params.id));
+  if (!result.changes) return res.status(404).json({ error: "This course is not in your saved list." });
+  res.status(204).end();
+});
+
 app.get("/api/courses/:id/roster", requireAuth, requireRole("instructor", "admin"), (req, res) => {
   const course = readCourse(Number(req.params.id));
   if (!course) return res.status(404).json({ error: "Course not found." });

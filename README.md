@@ -1,10 +1,10 @@
-# coursePulse · Build 26
+# coursePulse · Build 27
 
-🚀 **Feature Build #26**
-> **Commit Message:** `feat: notification bell menu and interactive dropdown ui`
+🚀 **Feature Build #27**
+> **Commit Message:** `feat: saved courses wishlist schema, api, and saved page`
 
 ## Summary
-Add notification bell dropdown in header with unread badge, relative timestamps, and mark-all-read.
+Add saved_courses table, toggle bookmark API, heart icon on course cards, and SavedCoursesPage.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.

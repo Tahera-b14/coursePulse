@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import "./styles.css";
 
 const categories = ["All", "Development", "Data & AI", "Design", "Business"];
-const pages = ["home", "courses", "login", "register", "dashboard", "grades"];
+const pages = ["home", "courses", "saved-courses", "login", "register", "dashboard", "grades"];
 
 const ConfirmContext = createContext(null);
 function useConfirm() {
@@ -287,7 +287,7 @@ function App() {
           <button className={isCatalog ? "nav-link active" : "nav-link"} onClick={() => go("courses")}>Explore courses</button>
           
           {user && <button className={page === "dashboard" ? "nav-link active" : "nav-link"} onClick={() => go("dashboard")}>My workspace</button>}
-          
+          {user && <button className={page === "saved-courses" ? "nav-link active" : "nav-link"} onClick={() => go("saved-courses")}>Saved courses</button>}
           
           {user?.role === "student" && <button className={page === "grades" ? "nav-link active" : "nav-link"} onClick={() => go("grades")}>Grades</button>}
           <div className="nav-actions">
@@ -317,8 +317,10 @@ function App() {
             enrolledIds={enrolledIds} onDetails={setDetailCourse} savedCourses={savedCourses}
             onToggleSaved={toggleSavedCourse} />
         )}
-        
-        
+        {page === "saved-courses" && user && <SavedCoursesPage courses={savedCourses} user={user} go={go}
+          onEnroll={enroll} busy={busy} onDetails={setDetailCourse} onToggleSaved={toggleSavedCourse}
+          enrolledIds={enrolledIds} />}
+        {page === "saved-courses" && !user && <AuthPage mode="login" onSubmit={handleAuth} busy={busy} go={go} />}
         
         
         
@@ -791,6 +793,25 @@ function SubmissionReview({ item, onGrade }) {
       {!item.content && !item.file_name && <p className="submission-content">No submission content.</p>}
       <div className="submission-grade"><label><span>Grade</span><input type="number" min="0" max={item.max_points} step="0.5" value={grade} onChange={(event) => setGrade(event.target.value)} required /><small>out of {item.max_points}</small></label><label><span>Feedback</span><input value={feedback} onChange={(event) => setFeedback(event.target.value)} maxLength="2000" placeholder="A note for your learner" /></label><button className="button button-primary button-small">{item.grade === null ? "Save grade" : "Update grade"}</button></div>
     </form>
+  );
+}
+
+function SavedCoursesPage({ courses, user, go, onEnroll, busy, onDetails, onToggleSaved, enrolledIds }) {
+  return (
+    <section className="catalog-page page-width">
+      <div className="catalog-intro">
+        <div className="eyebrow">A shortlist for your next step</div>
+        <h1>Saved for<br /><span>when you’re ready.</span></h1>
+        <p>Keep interesting courses close while you decide what to learn next.</p>
+      </div>
+      {courses.length ? (
+        <div className="course-grid saved-course-grid">{courses.map((course) => <CourseCard key={course.id} course={course} onEnroll={onEnroll}
+          busy={busy} user={user} go={go} enrolled={enrolledIds.has(course.id)} onDetails={onDetails} saved
+          onToggleSaved={onToggleSaved} />)}</div>
+      ) : <div className="empty-state"><span className="empty-icon"><Icon name="heart" size={24} /></span>
+        <h3>No saved courses yet</h3><p>Save courses from the catalog to keep your options in one place.</p>
+        <button className="button button-outline" onClick={() => go("courses")}>Explore courses</button></div>}
+    </section>
   );
 }
 
