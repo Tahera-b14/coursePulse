@@ -1,10 +1,10 @@
-# coursePulse · Build 25-fix
+# coursePulse · Build 26
 
-🐛 **Bug Fix Build**
-> **Commit Message:** `fix: unread notification badge count sync and polling cleanup`
+🚀 **Feature Build #26**
+> **Commit Message:** `feat: notification bell menu and interactive dropdown ui`
 
 ## Summary
-Clean up notification polling interval on component unmount and immediately update unread badge count.
+Add notification bell dropdown in header with unread badge, relative timestamps, and mark-all-read.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.

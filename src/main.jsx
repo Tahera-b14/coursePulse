@@ -293,7 +293,7 @@ function App() {
           <div className="nav-actions">
             {user ? (
               <>
-                
+                <NotificationsMenu key={user.id} notify={notify} />
                 <span className="nav-user"><span className="avatar">{initials(user.name)}</span>{user.name.split(" ")[0]}</span>
                 <button className="button button-quiet button-small" onClick={signOut}><Icon name="logout" size={16} /> Sign out</button>
               </>
@@ -841,6 +841,70 @@ function AnnouncementFeed() {
       <div className="panel-heading"><div><span className="eyebrow">From your courses</span><h2>Announcements</h2></div><Icon name="bell" size={18} /></div>
       {items.length ? <div className="announcement-list">{items.slice(0, 6).map((item) => <div className="announcement-item" key={item.id}><div className="announcement-top"><strong>{item.title}</strong><span className="row-badge">{item.code}</span></div><p>{item.body}</p><small>{item.author_name} · {formatDate(item.created_at)}</small></div>)}</div> : <EmptyPanel title="All quiet for now." description="Course announcements will show up here." />}
     </section>
+  );
+}
+
+function NotificationsMenu({ notify }) {
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [open, setOpen] = useState(false);
+
+  const loadNotifications = useCallback(async () => {
+    try {
+      const result = await api("/notifications");
+      setNotifications(result.notifications);
+      setUnreadCount(result.unread_count);
+    } catch (error) {
+      notify(error.message);
+    }
+  }, [notify]);
+
+  useEffect(() => {
+    loadNotifications();
+    window.addEventListener("focus", loadNotifications);
+    const timer = window.setInterval(loadNotifications, 30000);
+    return () => {
+      window.removeEventListener("focus", loadNotifications);
+      window.clearInterval(timer);
+    };
+  }, [loadNotifications]);
+
+  async function markRead(id) {
+    try {
+      await api(`/notifications/${id}/read`, { method: "PATCH", body: "{}" });
+      await loadNotifications();
+    } catch (error) { notify(error.message); }
+  }
+
+  async function markAllRead() {
+    try {
+      await api("/notifications/read-all", { method: "PATCH", body: "{}" });
+      await loadNotifications();
+      notify("All notifications marked as read.");
+    } catch (error) { notify(error.message); }
+  }
+
+  return (
+    <div className="notification-menu">
+      <button type="button" className={`notification-trigger ${open ? "active" : ""}`} aria-label={`Notifications${unreadCount ? `, ${unreadCount} unread` : ""}`} aria-expanded={open} onClick={() => { setOpen((value) => !value); loadNotifications(); }}>
+        <Icon name="bell" size={18} />
+        {unreadCount > 0 && <span className="notification-count">{unreadCount > 99 ? "99+" : unreadCount}</span>}
+      </button>
+      {open && <section className="notification-popover" aria-label="Notifications">
+        <div className="notification-heading"><div><strong>Notifications</strong><small>{unreadCount ? `${unreadCount} unread` : "You're all caught up"}</small></div>
+          {unreadCount > 0 && <button type="button" className="text-link" onClick={markAllRead}>Mark all read</button>}
+        </div>
+        <div className="notification-list">
+          {notifications.length ? notifications.map((item) => (
+            <button type="button" className={`notification-item ${item.read_at ? "" : "unread"}`} key={item.id} onClick={() => !item.read_at && markRead(item.id)}>
+              <span className="notification-item-icon"><Icon name="bell" size={15} /></span>
+              <span className="notification-item-copy"><strong>{item.title}</strong><span>{item.message}</span><small>{formatDate(item.created_at)}</small></span>
+              {!item.read_at && <span className="notification-unread-dot" />}
+            </button>
+          )) : <div className="notification-empty">No notifications yet.</div>}
+        </div>
+      </section>}
+    </div>
   );
 }
 
