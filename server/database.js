@@ -95,6 +95,14 @@ db.exec(`
     saved_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (user_id, course_id)
   );
+
+  CREATE TABLE IF NOT EXISTS profile_comments (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    profile_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    author_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    body TEXT NOT NULL CHECK (length(body) BETWEEN 1 AND 1000),
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  );
 `);
 db.exec("CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_id, created_at DESC, id DESC)");
 

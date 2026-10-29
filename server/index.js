@@ -161,6 +161,15 @@ function readPublicProfile(userId) {
   };
 }
 
+function readProfileComments(profileId) {
+  return db.prepare(`
+    SELECT comments.id, comments.profile_id, comments.author_id, comments.body, comments.created_at,
+      users.name AS author_name, users.role AS author_role
+    FROM profile_comments comments JOIN users ON users.id = comments.author_id
+    WHERE comments.profile_id = ? ORDER BY comments.created_at DESC, comments.id DESC
+  `).all(profileId);
+}
+
 app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
 
 app.post("/api/auth/register", (req, res, next) => {
@@ -752,6 +761,35 @@ app.put("/api/profile/password", requireAuth, (req, res) => {
   }
   db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(bcrypt.hashSync(newPassword, 12), req.user.id);
   res.json({ message: "Password updated." });
+});
+
+app.get("/api/people/:id/comments", requireAuth, (req, res) => {
+  const profileId = Number(req.params.id);
+  if (!db.prepare("SELECT 1 FROM users WHERE id = ?").get(profileId)) return res.status(404).json({ error: "Profile not found." });
+  res.json({ comments: readProfileComments(profileId) });
+});
+
+app.post("/api/people/:id/comments", requireAuth, (req, res) => {
+  const profileId = Number(req.params.id);
+  if (!db.prepare("SELECT 1 FROM users WHERE id = ?").get(profileId)) return res.status(404).json({ error: "Profile not found." });
+  const body = req.body?.body;
+  if (typeof body !== "string" || body.trim().length < 1 || body.trim().length > 1000) {
+    return res.status(400).json({ error: "Comments must be between 1 and 1,000 characters." });
+  }
+  const result = db.prepare("INSERT INTO profile_comments (profile_id, author_id, body) VALUES (?, ?, ?)")
+    .run(profileId, req.user.id, body.trim());
+  res.status(201).json({ comments: readProfileComments(profileId), comment_id: result.lastInsertRowid });
+});
+
+app.delete("/api/people/:id/comments/:commentId", requireAuth, (req, res) => {
+  const comment = db.prepare("SELECT id, profile_id, author_id FROM profile_comments WHERE id = ? AND profile_id = ?")
+    .get(Number(req.params.commentId), Number(req.params.id));
+  if (!comment) return res.status(404).json({ error: "Comment not found." });
+  if (comment.author_id !== req.user.id && comment.profile_id !== req.user.id && req.user.role !== "admin") {
+    return res.status(403).json({ error: "Only the comment author, profile owner, or an administrator can remove this comment." });
+  }
+  db.prepare("DELETE FROM profile_comments WHERE id = ?").run(comment.id);
+  res.status(204).end();
 });
 
 app.get("/api/courses/:id/roster", requireAuth, requireRole("instructor", "admin"), (req, res) => {

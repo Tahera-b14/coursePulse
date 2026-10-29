@@ -1,10 +1,10 @@
-# coursePulse · Build 28
+# coursePulse · Build 29
 
-🚀 **Feature Build #28**
-> **Commit Message:** `feat: people directory and public profile pages`
+🚀 **Feature Build #29**
+> **Commit Message:** `feat: profile comments and moderation system`
 
 ## Summary
-Add bio/phone fields, People directory with role filters, public profiles, and profile editor.
+Add profile_comments table, comment feed on user profiles, and comment moderation for authors and owners.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.

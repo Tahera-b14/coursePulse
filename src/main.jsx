@@ -1129,7 +1129,27 @@ function ProfilePage({ user, targetId, setUser, notify, go }) {
         <div><strong>Community overview</strong><p>There are {stats.students} students and {stats.instructors} instructors across {stats.courses} courses, with {stats.enrollments} active enrollments.</p></div>
         <button type="button" className="text-link" onClick={() => go("dashboard")}>Admin workspace <Icon name="arrow" size={14} /></button>
       </section>}
-      
+      <section className="dashboard-panel profile-comments">
+        <div className="panel-heading"><div><span className="eyebrow">Say hello</span><h2>Profile comments</h2></div><span className="row-badge">{comments?.length ?? "…"} comments</span></div>
+        <form className="profile-comment-form" onSubmit={addComment}>
+          <label htmlFor="profile-comment">Leave a comment on {isOwnProfile ? "your" : `${profile.name}'s`} profile</label>
+          <textarea id="profile-comment" value={commentText} onChange={(event) => setCommentText(event.target.value)} maxLength="1000" required placeholder="Share a friendly note with the community…" />
+          <div className="profile-comment-footer"><small>{commentText.length}/1000 characters</small><button className="button button-primary button-small" disabled={busy}>Post comment <Icon name="arrow" size={14} /></button></div>
+        </form>
+        {commentsError ? <div className="empty-state"><p>{commentsError}</p><button type="button" className="button button-outline" onClick={loadComments}>Try again</button></div>
+          : comments === null ? <div className="loading-card">Loading comments…</div>
+          : comments.length ? <div className="profile-comment-list">{comments.map((comment) =>
+            <article className="profile-comment" key={comment.id}>
+              <span className="avatar">{initials(comment.author_name)}</span>
+              <div className="profile-comment-body">
+                <div className="profile-comment-heading"><button type="button" className="text-link" onClick={() => go("profile", comment.author_id)}>{comment.author_name}</button><span className="role-badge">{comment.author_role}</span><time>{formatDate(comment.created_at)}</time>
+                  {(comment.author_id === user.id || isOwnProfile || user.role === "admin") && <button type="button" className="icon-button" onClick={() => removeComment(comment.id)} aria-label={`Delete comment by ${comment.author_name}`}><Icon name="trash" size={14} /></button>}
+                </div>
+                <p>{comment.body}</p>
+              </div>
+            </article>
+          )}</div> : <EmptyPanel title="No comments yet." description="Be the first to leave a friendly note." />}
+      </section>
       {isOwnProfile && <div className="dashboard-columns">
         <form className="dashboard-panel panel-form profile-panel" onSubmit={saveProfile}>
           <div className="panel-heading"><div><span className="eyebrow">Make it yours</span><h2>Personal details</h2><p className="panel-description">Keep your contact details and introduction up to date.</p></div><span className="profile-panel-icon"><Icon name="user" size={18} /></span></div>
