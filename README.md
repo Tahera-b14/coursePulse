@@ -1,10 +1,10 @@
-# coursePulse · Build 27
+# coursePulse · Build 28
 
-🚀 **Feature Build #27**
-> **Commit Message:** `feat: saved courses wishlist schema, api, and saved page`
+🚀 **Feature Build #28**
+> **Commit Message:** `feat: people directory and public profile pages`
 
 ## Summary
-Add saved_courses table, toggle bookmark API, heart icon on course cards, and SavedCoursesPage.
+Add bio/phone fields, People directory with role filters, public profiles, and profile editor.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.

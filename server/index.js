@@ -90,6 +90,77 @@ function removeHomeworkFiles(fileKeys) {
   }
 }
 
+const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function readProfile(userId) {
+  const profile = db.prepare("SELECT id, name, email, role, bio, phone, created_at FROM users WHERE id = ?").get(userId);
+  if (!profile) return null;
+  let stats;
+  if (profile.role === "student") {
+    const graded = db.prepare(`
+      SELECT s.grade, a.max_points FROM submissions s JOIN assignments a ON a.id = s.assignment_id
+      WHERE s.student_id = ? AND s.grade IS NOT NULL
+    `).all(userId);
+    const earned = graded.reduce((sum, row) => sum + row.grade, 0);
+    const possible = graded.reduce((sum, row) => sum + row.max_points, 0);
+    stats = {
+      courses: db.prepare("SELECT COUNT(*) AS total FROM enrollments WHERE student_id = ? AND status = 'active'").get(userId).total,
+      credits: db.prepare("SELECT COALESCE(SUM(c.credits), 0) AS total FROM enrollments e JOIN courses c ON c.id = e.course_id WHERE e.student_id = ? AND e.status = 'active'").get(userId).total,
+      completedCourses: db.prepare("SELECT COUNT(*) AS total FROM enrollments WHERE student_id = ? AND status = 'completed'").get(userId).total,
+      earnedCredits: db.prepare("SELECT COALESCE(SUM(c.credits), 0) AS total FROM enrollments e JOIN courses c ON c.id = e.course_id WHERE e.student_id = ? AND e.status = 'completed'").get(userId).total,
+      submissions: db.prepare("SELECT COUNT(*) AS total FROM submissions WHERE student_id = ?").get(userId).total,
+      average: possible ? Math.round((earned / possible) * 1000) / 10 : null,
+    };
+    profile.learning = {
+      courses: db.prepare(`
+        SELECT c.id, c.code, c.title, c.category, c.credits, e.status, e.enrolled_at
+        FROM enrollments e JOIN courses c ON c.id = e.course_id
+        WHERE e.student_id = ? ORDER BY e.status = 'active' DESC, e.enrolled_at DESC LIMIT 6
+      `).all(userId),
+      upcoming: db.prepare(`
+        SELECT a.id, a.title, a.due_date, a.max_points, c.code, c.title AS course_title
+        FROM assignments a JOIN courses c ON c.id = a.course_id
+        JOIN enrollments e ON e.course_id = c.id AND e.student_id = ? AND e.status = 'active'
+        LEFT JOIN submissions s ON s.assignment_id = a.id AND s.student_id = e.student_id
+        WHERE s.id IS NULL AND a.due_date >= datetime('now')
+        ORDER BY a.due_date ASC LIMIT 5
+      `).all(userId),
+    };
+  } else if (profile.role === "instructor") {
+    stats = {
+      courses: db.prepare("SELECT COUNT(*) AS total FROM courses WHERE instructor_id = ?").get(userId).total,
+      learners: db.prepare("SELECT COUNT(DISTINCT e.student_id) AS total FROM enrollments e JOIN courses c ON c.id = e.course_id WHERE c.instructor_id = ? AND e.status = 'active'").get(userId).total,
+      assignments: db.prepare("SELECT COUNT(*) AS total FROM assignments a JOIN courses c ON c.id = a.course_id WHERE c.instructor_id = ?").get(userId).total,
+    };
+    profile.teaching = db.prepare(`
+      SELECT c.id, c.code, c.title, c.category, c.credits, c.capacity,
+        (SELECT COUNT(DISTINCT e.student_id) FROM enrollments e WHERE e.course_id = c.id AND e.status = 'active') AS learners,
+        (SELECT COUNT(*) FROM assignments a WHERE a.course_id = c.id) AS assignments
+      FROM courses c WHERE c.instructor_id = ? ORDER BY c.title LIMIT 8
+    `).all(userId);
+  } else {
+    stats = {
+      users: db.prepare("SELECT COUNT(*) AS total FROM users").get().total,
+      courses: db.prepare("SELECT COUNT(*) AS total FROM courses").get().total,
+      students: db.prepare("SELECT COUNT(*) AS total FROM users WHERE role = 'student'").get().total,
+      instructors: db.prepare("SELECT COUNT(*) AS total FROM users WHERE role = 'instructor'").get().total,
+      enrollments: db.prepare("SELECT COUNT(*) AS total FROM enrollments WHERE status = 'active'").get().total,
+    };
+  }
+  return { ...profile, stats };
+}
+
+function readPublicProfile(userId) {
+  const profile = readProfile(userId);
+  if (!profile) return null;
+  const { id, name, role, bio, created_at, stats } = profile;
+  return {
+    id, name, role, bio, created_at, stats,
+    ...(role === "student" ? { courses: profile.learning.courses } : {}),
+    ...(role === "instructor" ? { courses: profile.teaching } : {}),
+  };
+}
+
 app.get("/api/health", (_req, res) => res.json({ status: "ok" }));
 
 app.post("/api/auth/register", (req, res, next) => {
@@ -629,6 +700,58 @@ app.delete("/api/saved-courses/:id", requireAuth, (req, res) => {
     .run(req.user.id, Number(req.params.id));
   if (!result.changes) return res.status(404).json({ error: "This course is not in your saved list." });
   res.status(204).end();
+});
+
+app.get("/api/profile", requireAuth, (req, res) => {
+  res.json({ profile: readProfile(req.user.id) });
+});
+
+app.get("/api/people", requireAuth, (_req, res) => {
+  const people = db.prepare("SELECT id, name, role, bio, created_at FROM users ORDER BY name COLLATE NOCASE").all();
+  res.json({ people });
+});
+
+app.get("/api/people/:id", requireAuth, (req, res) => {
+  const profile = readPublicProfile(Number(req.params.id));
+  if (!profile) return res.status(404).json({ error: "Profile not found." });
+  res.json({ profile });
+});
+
+app.put("/api/profile", requireAuth, (req, res, next) => {
+  const { name, email, bio = "", phone = "" } = req.body || {};
+  if (typeof name !== "string" || name.trim().length < 2 || name.trim().length > 80) {
+    return res.status(400).json({ error: "Name must be between 2 and 80 characters." });
+  }
+  if (typeof email !== "string" || !emailPattern.test(email.trim()) || email.length > 254) {
+    return res.status(400).json({ error: "Enter a valid email address." });
+  }
+  if (typeof bio !== "string" || bio.length > 500) return res.status(400).json({ error: "Bio must be 500 characters or fewer." });
+  if (typeof phone !== "string" || !/^[0-9+()\-\s]{0,30}$/.test(phone)) return res.status(400).json({ error: "Enter a valid phone number." });
+  try {
+    db.prepare("UPDATE users SET name = ?, email = ?, bio = ?, phone = ? WHERE id = ?")
+      .run(name.trim(), email.trim().toLowerCase(), bio.trim(), phone.trim(), req.user.id);
+    const profile = readProfile(req.user.id);
+    res.json({ profile, user: publicUser(profile) });
+  } catch (error) {
+    if (error.code === "SQLITE_CONSTRAINT_UNIQUE") return res.status(409).json({ error: "Another account already uses that email." });
+    next(error);
+  }
+});
+
+app.put("/api/profile/password", requireAuth, (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+  if (typeof currentPassword !== "string" || typeof newPassword !== "string") {
+    return res.status(400).json({ error: "Enter your current and new password." });
+  }
+  if (newPassword.length < 8 || newPassword.length > 128) {
+    return res.status(400).json({ error: "New password must be between 8 and 128 characters." });
+  }
+  const row = db.prepare("SELECT password_hash FROM users WHERE id = ?").get(req.user.id);
+  if (!bcrypt.compareSync(currentPassword, row.password_hash)) {
+    return res.status(400).json({ error: "Your current password is incorrect." });
+  }
+  db.prepare("UPDATE users SET password_hash = ? WHERE id = ?").run(bcrypt.hashSync(newPassword, 12), req.user.id);
+  res.json({ message: "Password updated." });
 });
 
 app.get("/api/courses/:id/roster", requireAuth, requireRole("instructor", "admin"), (req, res) => {

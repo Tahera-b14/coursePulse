@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import "./styles.css";
 
 const categories = ["All", "Development", "Data & AI", "Design", "Business"];
-const pages = ["home", "courses", "saved-courses", "login", "register", "dashboard", "grades"];
+const pages = ["home", "courses", "saved-courses", "login", "register", "dashboard", "people", "profile", "grades"];
 
 const ConfirmContext = createContext(null);
 function useConfirm() {
@@ -288,13 +288,13 @@ function App() {
           
           {user && <button className={page === "dashboard" ? "nav-link active" : "nav-link"} onClick={() => go("dashboard")}>My workspace</button>}
           {user && <button className={page === "saved-courses" ? "nav-link active" : "nav-link"} onClick={() => go("saved-courses")}>Saved courses</button>}
-          
+          {user && <button className={page === "people" ? "nav-link active" : "nav-link"} onClick={() => go("people")}>People</button>}
           {user?.role === "student" && <button className={page === "grades" ? "nav-link active" : "nav-link"} onClick={() => go("grades")}>Grades</button>}
           <div className="nav-actions">
             {user ? (
               <>
                 <NotificationsMenu key={user.id} notify={notify} />
-                <span className="nav-user"><span className="avatar">{initials(user.name)}</span>{user.name.split(" ")[0]}</span>
+                <button className={`nav-user ${page === "profile" ? "active" : ""}`} onClick={() => go("profile")} aria-label={`View ${user.name}'s profile`} title="View your profile"><span className="avatar">{initials(user.name)}</span>{user.name.split(" ")[0]}</button>
                 <button className="button button-quiet button-small" onClick={signOut}><Icon name="logout" size={16} /> Sign out</button>
               </>
             ) : (
@@ -321,11 +321,11 @@ function App() {
           onEnroll={enroll} busy={busy} onDetails={setDetailCourse} onToggleSaved={toggleSavedCourse}
           enrolledIds={enrolledIds} />}
         {page === "saved-courses" && !user && <AuthPage mode="login" onSubmit={handleAuth} busy={busy} go={go} />}
-        
-        
-        
+        {page === "people" && user && <PeoplePage go={go} />}
+        {page === "people" && !user && <AuthPage mode="login" onSubmit={handleAuth} busy={busy} go={go} />}
+        {page === "profile" && user && <ProfilePage key={profileId || user.id} user={user} targetId={profileId || user.id} setUser={setUser} notify={notify} go={go} />}
         {page === "grades" && user?.role === "student" && <GradesPage notify={notify} go={go} />}
-        
+        {(page === "profile" || page === "grades") && !user && <AuthPage mode="login" onSubmit={handleAuth} busy={busy} go={go} />}
         {page === "login" && <AuthPage mode="login" onSubmit={handleAuth} busy={busy} go={go} />}
         {page === "register" && <AuthPage mode="register" onSubmit={handleAuth} busy={busy} go={go} />}
         {page === "dashboard" && user && (
@@ -926,6 +926,231 @@ function NotificationsMenu({ notify }) {
         </div>
       </section>}
     </div>
+  );
+}
+
+function PeoplePage({ go }) {
+  const [people, setPeople] = useState(null);
+  const [search, setSearch] = useState("");
+  const [loadError, setLoadError] = useState("");
+
+  const loadPeople = useCallback(async () => {
+    setLoadError("");
+    try {
+      const result = await api("/people");
+      setPeople(result.people);
+    } catch (error) {
+      setLoadError(error.message);
+    }
+  }, []);
+
+  useEffect(() => { loadPeople(); }, [loadPeople]);
+  const matches = (people || []).filter((person) =>
+    `${person.name} ${person.role} ${person.bio}`.toLowerCase().includes(search.toLowerCase()));
+
+  return (
+    <section className="catalog-page page-width people-page">
+      <div className="catalog-intro">
+        <div className="eyebrow">Learn better together</div>
+        <h1>Meet the<br /><span>coursePulse community.</span></h1>
+        <p>Find a learner, instructor, or administrator and visit their profile.</p>
+      </div>
+      <div className="people-toolbar">
+        <label className="search-wrap"><Icon name="search" size={19} /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search names, roles, or interests..." aria-label="Search people" /></label>
+        {people && <span className="result-count">{matches.length} {matches.length === 1 ? "person" : "people"}</span>}
+      </div>
+      {loadError ? <div className="empty-state"><span className="empty-icon"><Icon name="close" size={22} /></span><h3>Couldn’t load the community</h3><p>{loadError}</p><button className="button button-outline" onClick={loadPeople}>Try again</button></div>
+        : !people ? <div className="loading-card">Loading the community…</div>
+          : matches.length ? <div className="people-grid">{matches.map((person) =>
+            <button type="button" className="person-card" key={person.id} onClick={() => go("profile", person.id)}>
+              <span className="person-avatar">{initials(person.name)}</span>
+              <span className="person-details"><strong>{person.name}</strong><span className="role-badge">{person.role}</span>
+                <span className="person-bio">{person.bio || "This member hasn’t added a bio yet."}</span>
+                <small>Member since {formatDate(person.created_at)}</small>
+              </span><Icon name="arrow" size={17} />
+            </button>
+          )}</div> : <div className="empty-state"><span className="empty-icon"><Icon name="search" size={22} /></span><h3>No people found</h3><p>Try a different name or search term.</p></div>}
+    </section>
+  );
+}
+
+function ProfilePage({ user, targetId, setUser, notify, go }) {
+  const isOwnProfile = user.id === targetId;
+  const confirm = useConfirm();
+  const [profile, setProfile] = useState(null);
+  const [loadingError, setLoadingError] = useState("");
+  const [form, setForm] = useState({ name: "", email: "", bio: "", phone: "" });
+  const [passwords, setPasswords] = useState({ currentPassword: "", newPassword: "", confirm: "" });
+  const [comments, setComments] = useState(null);
+  const [commentsError, setCommentsError] = useState("");
+  const [commentText, setCommentText] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const loadProfile = useCallback(async () => {
+    setLoadingError("");
+    try {
+      const { profile: data } = await api(isOwnProfile ? "/profile" : `/people/${targetId}`);
+      setProfile(data);
+      if (isOwnProfile) setForm({ name: data.name, email: data.email, bio: data.bio || "", phone: data.phone || "" });
+    } catch (error) {
+      setLoadingError(error.message);
+      notify(error.message);
+    }
+  }, [isOwnProfile, targetId, notify]);
+
+  useEffect(() => { loadProfile(); }, [loadProfile]);
+
+  const loadComments = useCallback(async () => {
+    setCommentsError("");
+    try {
+      const { comments: profileComments } = await api(`/people/${targetId}/comments`);
+      setComments(profileComments);
+    } catch (error) {
+      setCommentsError(error.message);
+      notify(error.message);
+    }
+  }, [targetId, notify]);
+
+  useEffect(() => { loadComments(); }, [loadComments]);
+
+  async function saveProfile(event) {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      const result = await api("/profile", { method: "PUT", body: JSON.stringify(form) });
+      setProfile(result.profile);
+      setUser(result.user);
+      notify("Profile saved.");
+    } catch (error) { notify(error.message); }
+    finally { setBusy(false); }
+  }
+
+  async function changePassword(event) {
+    event.preventDefault();
+    if (passwords.newPassword !== passwords.confirm) return notify("New passwords do not match.");
+    setBusy(true);
+    try {
+      await api("/profile/password", { method: "PUT", body: JSON.stringify({ currentPassword: passwords.currentPassword, newPassword: passwords.newPassword }) });
+      setPasswords({ currentPassword: "", newPassword: "", confirm: "" });
+      notify("Password updated.");
+    } catch (error) { notify(error.message); }
+    finally { setBusy(false); }
+  }
+
+  async function addComment(event) {
+    event.preventDefault();
+    setBusy(true);
+    try {
+      const result = await api(`/people/${targetId}/comments`, {
+        method: "POST", body: JSON.stringify({ body: commentText }),
+      });
+      setComments(result.comments);
+      setCommentText("");
+      notify("Comment posted.");
+    } catch (error) { notify(error.message); }
+    finally { setBusy(false); }
+  }
+
+  async function removeComment(commentId) {
+    if (!await confirm("This comment will be removed from the profile.", "Delete this comment?")) return;
+    try {
+      await api(`/people/${targetId}/comments/${commentId}`, { method: "DELETE" });
+      await loadComments();
+      notify("Comment removed.");
+    } catch (error) { notify(error.message); }
+  }
+
+  if (!profile) return <section className="dashboard-page page-width">
+    <div className="dashboard-panel profile-load-state">
+      <span className="profile-load-icon"><Icon name={loadingError ? "close" : "user"} size={21} /></span>
+      <h1>{loadingError ? "Your profile couldn’t load." : "Getting your profile ready…"}</h1>
+      <p>{loadingError || "Just a moment while we gather your account details."}</p>
+      {loadingError && <button className="button button-outline" onClick={loadProfile}>Try again</button>}
+    </div>
+  </section>;
+  const { stats } = profile;
+  const visibleCourses = isOwnProfile ? profile.learning?.courses || [] : profile.courses || [];
+  const upcomingAssignments = isOwnProfile ? profile.learning?.upcoming || [] : [];
+  const teachingCourses = isOwnProfile ? profile.teaching || [] : profile.courses || [];
+  const statCards = profile.role === "student"
+    ? [["Active courses", stats.courses, "book", "stat-lilac"], ["In-progress credits", stats.credits, "cap", "stat-green"], ["Earned credits", stats.earnedCredits, "check", "stat-green"], ["Submissions", stats.submissions, "edit", "stat-peach"], ["Graded average", stats.average === null ? "—" : `${stats.average}%`, "chart", "stat-blue"]]
+    : profile.role === "instructor"
+      ? [["Courses taught", stats.courses, "book", "stat-lilac"], ["Learners", stats.learners, "users", "stat-green"], ["Assignments", stats.assignments, "clock", "stat-peach"]]
+      : [["All accounts", stats.users, "users", "stat-lilac"], ["Students", stats.students, "user", "stat-blue"], ["Instructors", stats.instructors, "cap", "stat-green"], ["Courses", stats.courses, "book", "stat-peach"], ["Active enrollments", stats.enrollments, "grid", "stat-blue"]];
+
+  return (
+    <section className="dashboard-page page-width">
+      <header className="profile-hero">
+        <span className="profile-avatar">{initials(profile.name)}</span>
+        <div className="profile-identity">
+          <div className="eyebrow"><span className="eyebrow-dot" /> {isOwnProfile ? "Your coursePulse account" : "coursePulse member"}</div>
+          <h1>{profile.name}</h1>
+          <div className="profile-meta"><span className="role-badge">{profile.role}</span>{isOwnProfile && <><span>{profile.email}</span>{profile.phone && <span>{profile.phone}</span>}</>}<span>Member since {formatDate(profile.created_at)}</span></div>
+          {profile.bio ? <p className="profile-bio">{profile.bio}</p> : <p className="profile-bio profile-bio-empty">{isOwnProfile ? "Add a short bio to introduce yourself to your learning community." : "This member hasn’t added a bio yet."}</p>}
+        </div>
+        {isOwnProfile && profile.role === "student" && <button className="button button-outline profile-header-action" onClick={() => go("grades")}><Icon name="chart" size={16} /> View grades <Icon name="arrow" size={15} /></button>}
+      </header>
+      <div className="dashboard-stats profile-stats">{statCards.map(([label, value, icon, tint]) => <StatCard key={label} label={label} value={value} icon={icon} tint={tint} />)}</div>
+      {profile.role === "student" && <section className="profile-activity-grid">
+        <section className="dashboard-panel profile-activity-panel">
+          <div className="panel-heading"><div><span className="eyebrow">{isOwnProfile ? "Your learning" : "Learning"}</span><h2>Courses</h2></div>{isOwnProfile && <button type="button" className="text-link" onClick={() => go("dashboard")}>Workspace <Icon name="arrow" size={14} /></button>}</div>
+          {visibleCourses.length ? <div className="profile-course-list">{visibleCourses.map((course) =>
+            <div className="profile-course-row" key={course.id}>
+              <span className="profile-course-mark"><Icon name="book" size={17} /></span>
+              <span className="profile-course-copy"><strong>{course.title}</strong><small>{course.code} · {course.category} · {course.credits} credits</small></span>
+              <span className={`status-pill ${course.status === "completed" ? "status-done" : ""}`}>{course.status === "completed" ? "Completed" : "In progress"}</span>
+            </div>
+          )}</div> : <EmptyPanel title="No courses to show yet." description={isOwnProfile ? "Courses you enroll in will appear here." : undefined} action={isOwnProfile ? "Explore courses" : undefined} onClick={() => go("courses")} />}
+        </section>
+        {isOwnProfile && <section className="dashboard-panel profile-activity-panel">
+          <div className="panel-heading"><div><span className="eyebrow">Coming up</span><h2>Assignments</h2></div><Icon name="clock" size={18} /></div>
+          {upcomingAssignments.length ? <div className="profile-course-list">{upcomingAssignments.map((item) =>
+            <div className="profile-course-row" key={item.id}>
+              <span className="profile-course-mark profile-assignment-mark"><Icon name="clock" size={17} /></span>
+              <span className="profile-course-copy"><strong>{item.title}</strong><small>{item.code} · {item.course_title} · {item.max_points} points</small></span>
+              <span className="profile-due-date">{formatDate(item.due_date, { month: "short", day: "numeric" })}</span>
+            </div>
+          )}</div> : <EmptyPanel title="You’re all caught up." description="New assignments from your active courses will appear here." />}
+        </section>}
+      </section>}
+      {profile.role === "instructor" && <section className="dashboard-panel profile-activity-panel profile-teaching-panel">
+        <div className="panel-heading"><div><span className="eyebrow">{isOwnProfile ? "Your teaching" : "Teaching"}</span><h2>Courses</h2></div>{isOwnProfile && <button type="button" className="text-link" onClick={() => go("dashboard")}>Workspace <Icon name="arrow" size={14} /></button>}</div>
+        {teachingCourses.length ? <div className="profile-course-list">{teachingCourses.map((course) =>
+          <div className="profile-course-row" key={course.id}>
+            <span className="profile-course-mark"><Icon name="book" size={17} /></span>
+            <span className="profile-course-copy"><strong>{course.title}</strong><small>{course.code} · {course.category} · {course.credits} credits</small></span>
+            <span className="profile-course-count">{course.learners}/{course.capacity} learners</span>
+            <span className="profile-course-count">{course.assignments} assignments</span>
+          </div>
+        )}</div> : <EmptyPanel title="No courses to show yet." action="Open workspace" onClick={() => go("dashboard")} />}
+      </section>}
+      {isOwnProfile && profile.role === "admin" && <section className="dashboard-panel profile-activity-panel profile-admin-note">
+        <span className="profile-course-mark"><Icon name="chart" size={17} /></span>
+        <div><strong>Community overview</strong><p>There are {stats.students} students and {stats.instructors} instructors across {stats.courses} courses, with {stats.enrollments} active enrollments.</p></div>
+        <button type="button" className="text-link" onClick={() => go("dashboard")}>Admin workspace <Icon name="arrow" size={14} /></button>
+      </section>}
+      
+      {isOwnProfile && <div className="dashboard-columns">
+        <form className="dashboard-panel panel-form profile-panel" onSubmit={saveProfile}>
+          <div className="panel-heading"><div><span className="eyebrow">Make it yours</span><h2>Personal details</h2><p className="panel-description">Keep your contact details and introduction up to date.</p></div><span className="profile-panel-icon"><Icon name="user" size={18} /></span></div>
+          <div className="form-grid">
+            <label>Full name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required minLength="2" maxLength="80" autoComplete="name" /></label>
+            <label>Email address<input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required maxLength="254" autoComplete="email" /></label>
+            <label>Phone<input value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} maxLength="30" placeholder="Optional" autoComplete="tel" /></label>
+            <label>Role<input value={profile.role} disabled /></label>
+            <label className="full-field">Bio<textarea value={form.bio} onChange={(event) => setForm({ ...form, bio: event.target.value })} maxLength="500" placeholder="What are you learning, teaching, or working toward?" /><small className="field-hint">{form.bio.length}/500 characters</small></label>
+          </div>
+          <div className="profile-form-footer"><span>Your email is used for account sign-in.</span><button className="button button-primary" disabled={busy}>{busy ? "Saving…" : "Save changes"} <Icon name="arrow" size={15} /></button></div>
+        </form>
+        <form className="dashboard-panel panel-form profile-panel" onSubmit={changePassword}>
+          <div className="panel-heading"><div><span className="eyebrow">Keep your account safe</span><h2>Change password</h2><p className="panel-description">Choose a password you don’t use elsewhere.</p></div><span className="profile-panel-icon profile-security-icon"><Icon name="lock" size={18} /></span></div>
+          <label>Current password<input type="password" value={passwords.currentPassword} onChange={(event) => setPasswords({ ...passwords, currentPassword: event.target.value })} required autoComplete="current-password" /></label>
+          <label>New password<input type="password" value={passwords.newPassword} onChange={(event) => setPasswords({ ...passwords, newPassword: event.target.value })} required minLength="8" maxLength="128" autoComplete="new-password" /></label>
+          <label>Confirm new password<input type="password" value={passwords.confirm} onChange={(event) => setPasswords({ ...passwords, confirm: event.target.value })} required minLength="8" maxLength="128" autoComplete="new-password" /></label>
+          <div className="profile-form-footer"><span>Use at least 8 characters.</span><button className="button button-dark" disabled={busy}>{busy ? "Updating…" : "Update password"} <Icon name="arrow" size={15} /></button></div>
+        </form>
+      </div>}
+    </section>
   );
 }
 

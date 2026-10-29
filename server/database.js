@@ -98,6 +98,11 @@ db.exec(`
 `);
 db.exec("CREATE INDEX IF NOT EXISTS idx_notifications_user_created ON notifications(user_id, created_at DESC, id DESC)");
 
+// Lightweight migrations for databases created before profile fields existed.
+const userColumns = db.prepare("PRAGMA table_info(users)").all().map((column) => column.name);
+if (!userColumns.includes("bio")) db.exec("ALTER TABLE users ADD COLUMN bio TEXT NOT NULL DEFAULT ''");
+if (!userColumns.includes("phone")) db.exec("ALTER TABLE users ADD COLUMN phone TEXT NOT NULL DEFAULT ''");
+
 const submissionColumns = db.prepare("PRAGMA table_info(submissions)").all().map((column) => column.name);
 if (!submissionColumns.includes("file_key")) db.exec("ALTER TABLE submissions ADD COLUMN file_key TEXT");
 if (!submissionColumns.includes("file_name")) db.exec("ALTER TABLE submissions ADD COLUMN file_name TEXT");
