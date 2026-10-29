@@ -1,10 +1,10 @@
-# coursePulse · Build 25
+# coursePulse · Build 25-fix
 
-🚀 **Feature Build #25**
-> **Commit Message:** `feat: in-app notifications schema and automated event triggers`
+🐛 **Bug Fix Build**
+> **Commit Message:** `fix: unread notification badge count sync and polling cleanup`
 
 ## Summary
-Add notifications table with automated triggers when announcements are posted or learners are unenrolled.
+Clean up notification polling interval on component unmount and immediately update unread badge count.
 
 ## Project Overview
 coursePulse is a modern full-stack JavaScript course management system designed for learners, instructors, and platform administrators. Built with React, Vite, Express, and SQLite.
