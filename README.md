@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![coursePulse Logo](/public/coursepulse-logo.png)
+<img src="public/coursepulse-logo.png" alt="coursePulse Logo" width="200" />
 
 ### **Learn with direction.**
 *A calmer, clearer course and learning management system built for modern education.*
