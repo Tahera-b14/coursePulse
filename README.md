@@ -193,6 +193,8 @@ coursePulse/
 │       ├── portrait-sticker-two.png
 │       ├── portrait-sticker.png
 │       ├── tahera-singing.png
+│       ├── tanvir-egg-1.jpg
+│       ├── tanvir-egg-2.jpg
 │       └── tanvir-standing.png
 │
 ├── 📁 server/                             # Backend application layer (Node.js + Express)
@@ -493,7 +495,8 @@ npm run dev
 
 ### 🥚 Hidden Easter Eggs
 - **Credits Shortcut:** Click the **coursePulse** brand logo in the footer **3 times** within 1.2 seconds to jump directly to the Credits page.
-- **Secret Sticker Gallery:** On the Credits page (`#credits`), click on **Tahera's name** **5 times** to unlock the interactive sticker gallery modal!
+- **Tahera's Secret Sticker Gallery:** On the Credits page (`#credits`), click on **Tahera's name** **5 times** to unlock the interactive sticker gallery modal!
+- **Tanvir's Secret Easter Egg:** On the Credits page (`#credits`), click on **Tanvir's name** **5 times** to unlock the secret photo gallery modal!
 
 ---
 

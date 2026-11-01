@@ -398,16 +398,21 @@ function UniversitiesPage({ go }) {
 
 function CreditsPage({ go }) {
   const [stickersOpen, setStickersOpen] = useState(false);
+  const [tanvirOpen, setTanvirOpen] = useState(false);
   const taheraClicks = useRef([]);
+  const tanvirClicks = useRef([]);
 
   useEffect(() => {
-    if (!stickersOpen) return undefined;
+    if (!stickersOpen && !tanvirOpen) return undefined;
     const onKeyDown = (event) => {
-      if (event.key === "Escape") setStickersOpen(false);
+      if (event.key === "Escape") {
+        setStickersOpen(false);
+        setTanvirOpen(false);
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [stickersOpen]);
+  }, [stickersOpen, tanvirOpen]);
 
   function handleTaheraClick() {
     const now = Date.now();
@@ -416,6 +421,16 @@ function CreditsPage({ go }) {
     if (taheraClicks.current.length >= 5) {
       taheraClicks.current = [];
       setStickersOpen(true);
+    }
+  }
+
+  function handleTanvirClick() {
+    const now = Date.now();
+    tanvirClicks.current = tanvirClicks.current.filter((timestamp) => now - timestamp < 1200);
+    tanvirClicks.current.push(now);
+    if (tanvirClicks.current.length >= 5) {
+      tanvirClicks.current = [];
+      setTanvirOpen(true);
     }
   }
 
@@ -429,7 +444,7 @@ function CreditsPage({ go }) {
         <div className="credits-people">
           <article className="credits-person">
             <span className="credits-initials">TR</span>
-            <h2>Tanvir Rahman Rahi</h2>
+            <h2><button type="button" className="sticker-trigger" onClick={handleTanvirClick}>Tanvir Rahman Rahi</button></h2>
             <p>242-112-011</p>
           </article>
           <article className="credits-person">
@@ -449,6 +464,16 @@ function CreditsPage({ go }) {
             <img src="/stickers/portrait-sticker.png" alt="Portrait sticker" />
             <img src="/stickers/tanvir-standing.png" alt="Tanvir standing sticker" />
             <img src="/stickers/portrait-sticker-two.png" alt="Portrait sticker" />
+          </div>
+        </section>
+      </div>}
+      {tanvirOpen && <div className="sticker-backdrop" onClick={() => setTanvirOpen(false)}>
+        <section className="sticker-gallery" role="dialog" aria-modal="true" aria-labelledby="tanvir-sticker-title" onClick={(event) => event.stopPropagation()}>
+          <button type="button" className="sticker-close" onClick={() => setTanvirOpen(false)} aria-label="Close easter egg">×</button>
+          <h2 id="tanvir-sticker-title">you found it xD</h2>
+          <div className="sticker-grid two-column">
+            <img src="/stickers/tanvir-egg-1.jpg" alt="Easter egg photo 1" />
+            <img src="/stickers/tanvir-egg-2.jpg" alt="Easter egg photo 2" />
           </div>
         </section>
       </div>}
