@@ -7,6 +7,7 @@
 ### **Learn with direction.**
 *A calmer, clearer course and learning management system built for modern education.*
 
+[![Live Site](https://img.shields.io/badge/Live%20Site-coursepulse--v586.onrender.com-46E3B7?style=flat-square&logo=render&logoColor=white)](https://coursepulse-v586.onrender.com)
 [![React](https://img.shields.io/badge/Frontend-React%2019-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
 [![Vite](https://img.shields.io/badge/Bundler-Vite%207-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vitejs.dev/)
 [![Node.js](https://img.shields.io/badge/Runtime-Node.js%20v18+-339933?style=flat-square&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
